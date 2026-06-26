@@ -489,7 +489,6 @@ function renderQuestion(){
 
 /* ===== RECORDING ===== */
 async function startAutoRecording(q){
-  window._lastTranscript='';
   try{
     micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
     audioContext=new(window.AudioContext||window.webkitAudioContext)();
@@ -497,33 +496,14 @@ async function startAutoRecording(q){
     analyser.fftSize=256;
     const src=audioContext.createMediaStreamSource(micStream);
     src.connect(analyser);
-
     audioChunks=[];
     const mimeType=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
     mediaRecorder=new MediaRecorder(micStream,{mimeType});
     mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
-    mediaRecorder.onstop=()=>processAudio(q);
+    mediaRecorder.onstop=()=>runSTT(q);
     mediaRecorder.start(100);
     isRecording=true;
     speechDetected=false;
-    silenceCounter=0;
-
-    // Web Speech APIをリアルタイムで同時起動
-    if(window.SpeechRecognition||window.webkitSpeechRecognition){
-      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-      const sr=new SR();
-      sr.lang='en-US';sr.continuous=true;sr.interimResults=false;
-      sr.onresult=e=>{
-        let t='';
-        for(let i=e.resultIndex;i<e.results.length;i++){
-          if(e.results[i].isFinal)t+=e.results[i][0].transcript+' ';
-        }
-        if(t.trim())window._lastTranscript=((window._lastTranscript||'')+' '+t).trim();
-      };
-      sr.onerror=()=>{};
-      try{sr.start();window._sr=sr;}catch(e){}
-    }
-
     setStatus('待機中 — 話してください 🎤',false);
     startCountdown();
     startViz();
@@ -533,18 +513,15 @@ async function startAutoRecording(q){
   }
 }
 
-/* カウントダウン：無音時のみカウント、話したら即停止 */
 function startCountdown(){
   let t=settings.wait;
   setCdown(t,false);
   noSpeechTimer=setInterval(()=>{
     if(speechDetected){clearInterval(noSpeechTimer);setCdown('',false);return;}
     t--;
-    const urgent=t<=2;
-    setCdown(t,urgent);
+    setCdown(t,t<=2);
     if(t<=0){
       clearInterval(noSpeechTimer);
-      // タイムアウト → 回答なしでスキップ
       stopAll();
       showAnswerOnly(qs.queue[qs.idx]);
     }
@@ -561,28 +538,21 @@ function setStatus(txt,rec){
   if(el){el.textContent=txt;el.style.color=rec?'var(--red)':'var(--text2)';}
 }
 
-/* 音量ビジュアライザ＋音声検知＋無音停止 */
 function startViz(){
   const buf=new Uint8Array(analyser.frequencyBinCount);
   let silenceTicks=0;
   const maxSilenceTicks=Math.round(SILENCE_STOP_MS/SILENCE_TICK);
-
   function tick(){
     if(!isRecording){cancelAnimationFrame(vizRaf);return;}
     analyser.getByteFrequencyData(buf);
     const avg=buf.reduce((s,v)=>s+v,0)/buf.length;
-
-    // ビジュアライザ更新
     const bars=document.querySelectorAll('.rec-bar');
     bars.forEach((bar,i)=>{
-      const h=Math.max(4,Math.min(30,buf[i*2]/5));
-      bar.style.height=h+'px';
+      bar.style.height=Math.max(4,Math.min(30,buf[i*2]/5))+'px';
       bar.classList.toggle('active',avg>SILENCE_THRESHOLD);
     });
-
     if(!speechDetected){
       if(avg>SILENCE_THRESHOLD){
-        // 話し始め検知
         speechDetected=true;
         clearInterval(noSpeechTimer);
         setCdown('',false);
@@ -590,17 +560,11 @@ function startViz(){
         silenceTicks=0;
       }
     } else {
-      // 話した後の無音チェック
       if(avg<SILENCE_THRESHOLD){
         silenceTicks++;
-        const pct=Math.min(100,silenceTicks/maxSilenceTicks*100);
         const sb=document.getElementById('silence-bar');
-        if(sb)sb.style.width=pct+'%';
-        if(silenceTicks>=maxSilenceTicks){
-          // 無音1.5秒 → 録音停止して分析
-          stopAll();
-          return;
-        }
+        if(sb)sb.style.width=Math.min(100,silenceTicks/maxSilenceTicks*100)+'%';
+        if(silenceTicks>=maxSilenceTicks){stopAll();return;}
       } else {
         silenceTicks=0;
         const sb=document.getElementById('silence-bar');
@@ -621,56 +585,37 @@ function stopAll(){
   if(audioContext&&audioContext.state!=='closed')audioContext.close();
 }
 
-/* ===== AUDIO PROCESSING ===== */
-async function processAudio(q){
+/* ===== STT → Claude分析（シンプル一本道）===== */
+function runSTT(q){
   if(!speechDetected){return;}
-  // continuous STT停止
-  if(window._sr){try{window._sr.stop();}catch(e){}}
   const recArea=document.getElementById('rec-area');
   if(recArea)recArea.innerHTML='<div class="analyzing"><div class="spinner"></div>AIが分析中...</div>';
 
-  // continuous STTで取れていればそれを使う
-  const existingTranscript=(window._lastTranscript||'').trim();
-  if(existingTranscript){
-    analyzeText(existingTranscript,q);
-    return;
+  if(!window.SpeechRecognition&&!window.webkitSpeechRecognition){
+    showAnswerOnly(q);return;
   }
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const sr=new SR();
+  sr.lang='en-US';
+  sr.continuous=false;
+  sr.interimResults=false;
+  sr.maxAlternatives=1;
 
-  // Android対策：one-shot STTで再試行
-  if(window.SpeechRecognition||window.webkitSpeechRecognition){
-    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    const sr=new SR();
-    sr.lang='en-US';sr.continuous=false;sr.interimResults=false;sr.maxAlternatives=1;
-    sr.onresult=e=>{
-      const t=e.results[0][0].transcript;
-      if(t)analyzeText(t,q);
-      else showAnswerOnly(q);
-    };
-    sr.onerror=()=>showAnswerOnly(q);
-    sr.onend=()=>{};
-    // 録音済みaudioのURLを再生しながらSTT
-    const blob=new Blob(audioChunks,{type:'audio/webm'});
-    const url=URL.createObjectURL(blob);
-    const audio=new Audio(url);
-    audio.onended=()=>{setTimeout(()=>{try{sr.stop();}catch(e){}},500);};
-    try{
-      sr.start();
-      // 少し待ってから再生（STTが起動してから）
-      setTimeout(()=>audio.play().catch(()=>{}),300);
-      // タイムアウト保険
-      setTimeout(()=>{
-        try{sr.stop();}catch(e){}
-        if(!(window._lastTranscript||'').trim())showAnswerOnly(q);
-      },8000);
-    }catch(e){showAnswerOnly(q);}
-  } else {
-    showAnswerOnly(q);
-  }
-}
+  let done=false;
+  sr.onresult=e=>{
+    if(done)return;
+    done=true;
+    const transcript=e.results[0][0].transcript.trim();
+    if(transcript)analyzeText(transcript,q);
+    else showAnswerOnly(q);
+  };
+  sr.onerror=()=>{if(!done){done=true;showAnswerOnly(q);}};
+  sr.onend=()=>{if(!done){done=true;showAnswerOnly(q);}};
 
-async function sendAudioToClaude(blob,q){
-  // 音声をClaudeに直接送るのではなく、答えのみ表示
-  showAnswerOnly(q);
+  // タイムアウト保険（10秒）
+  setTimeout(()=>{if(!done){done=true;try{sr.stop();}catch(e){}showAnswerOnly(q);}},10000);
+
+  try{sr.start();}catch(e){showAnswerOnly(q);}
 }
 
 async function analyzeText(transcript,q){
