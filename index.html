@@ -359,9 +359,10 @@ let speechDetected=false;
 let noSpeechTimer=null;
 let vizRaf=null;
 let silenceCounter=0;
-const SILENCE_THRESHOLD=10;    // volume level below this = silence
-const SILENCE_STOP_MS=3000;    // ms of silence after speech → stop
-const SILENCE_TICK=100;        // check every 100ms
+const SILENCE_THRESHOLD=10;
+const SILENCE_STOP_MS=3000;
+const SILENCE_TICK=100;
+let scores={}; // フレーズごとの最新★スコア
 
 function loadData(){
   try{
@@ -369,12 +370,17 @@ function loadData(){
     if(k){apiKey=k;updateApiDot();}
     const m=localStorage.getItem('mtg_mastery4');
     if(m)mastery=JSON.parse(m);
+    const s=localStorage.getItem('mtg_scores');
+    if(s)scores=JSON.parse(s);
   }catch(e){}
 }
 function saveKey(k){try{localStorage.setItem('mtg_apikey2',k);}catch(e){}}
 function saveM(){try{localStorage.setItem('mtg_mastery4',JSON.stringify(mastery));}catch(e){}}
+function saveScores(){try{localStorage.setItem('mtg_scores',JSON.stringify(scores));}catch(e){}}
 function gm(id){return mastery[id]||0;}
 function sm(id,v){mastery[id]=Math.max(0,Math.min(5,v));saveM();}
+function gs(id){return scores[id]||null;}
+function ss(id,v){scores[id]=v;saveScores();}
 function updateApiDot(){
   const d=document.getElementById('api-dot');
   if(d)d.className='api-dot'+(apiKey?' ok':'');
@@ -436,6 +442,7 @@ function renderQuizSettings(){
       <div class="seg">
         <button class="seg-btn${settings.order==='smart'?' active':''}" onclick="settings.order='smart';renderQuizSettings()">苦手優先</button>
         <button class="seg-btn${settings.order==='random'?' active':''}" onclick="settings.order='random';renderQuizSettings()">ランダム</button>
+        <button class="seg-btn${settings.order==='weak'?' active':''}" onclick="settings.order='weak';renderQuizSettings()">★1〜2のみ</button>
       </div>
     </div>
     <div class="setting-group">
@@ -449,9 +456,18 @@ function renderQuizSettings(){
 function buildQueue(){
   let pool=[...PH];
   if(filterCat!=='すべて')pool=pool.filter(p=>p.cat===filterCat);
-  if(settings.order==='smart'){
-    pool.sort((a,b)=>{const d=gm(a.id)-gm(b.id);return d!==0?d:Math.random()-0.5;});
-  }else{
+  if(settings.order==='weak'){
+    // ★1〜2のみ（スコア未記録は含める）
+    pool=pool.filter(p=>{const s=gs(p.id);return s===null||s<=2;});
+    pool.sort(()=>Math.random()-0.5);
+  } else if(settings.order==='smart'){
+    // スコアが低い順に優先
+    pool.sort((a,b)=>{
+      const sa=gs(a.id)??0;
+      const sb=gs(b.id)??0;
+      return sa!==sb?sa-sb:Math.random()-0.5;
+    });
+  } else {
     pool.sort(()=>Math.random()-0.5);
   }
   return pool.slice(0,Math.min(settings.count,pool.length));
@@ -737,6 +753,10 @@ async function callClaude(messages){
 /* ===== DISPLAY ===== */
 function showScore(result,q){
   const score=Math.max(1,Math.min(5,result.score||3));
+
+  // ★スコアを自動保存
+  ss(q.id,score);
+
   const stars=Array.from({length:5},(_,i)=>i<score?'⭐':'☆').join('');
   const fixes=(result.fixes||[]).filter(Boolean).map(f=>`<div class="score-item">${f}</div>`).join('');
 
@@ -785,17 +805,22 @@ function showAnswerOnly(q){
 }
 
 function showResultBtns(q){
-  const m=gm(q.id);
   const ra=document.getElementById('result-area');
+  const lastScore=gs(q.id);
+  const scoreDisp=lastScore?`最新スコア: ${'⭐'.repeat(lastScore)}${'☆'.repeat(5-lastScore)}`:'';
   if(ra)ra.innerHTML=`
     <div style="display:flex;flex-direction:column;gap:10px;padding-bottom:20px">
-      <div class="mastery-row">習熟度:<div class="dots">${dots(m)}</div></div>
+      ${scoreDisp?`<div style="font-size:12px;color:var(--text2);text-align:center">${scoreDisp}</div>`:''}
       <button class="again-btn" onclick="retryQuestion()">🔄 もう一度話す</button>
-      <div class="result-btns">
-        <button class="btn-ng" onclick="mark(false)">✗ もう少し</button>
-        <button class="btn-ok" onclick="mark(true)">✓ 言えた！</button>
-      </div>
+      <button class="btn-ok" onclick="nextQuestion()" style="width:100%">次へ →</button>
     </div>`;
+}
+
+function nextQuestion(){
+  qs.total++;
+  qs.idx++;
+  if(qs.idx>=qs.queue.length)qs.done=true;
+  renderQuestion();
 }
 
 function retryQuestion(){
@@ -869,25 +894,24 @@ async function startRecordingOnly(q){
   }
 }
 
-function mark(ok){
-  const q=qs.queue[qs.idx];
-  if(ok){sm(q.id,gm(q.id)+1);qs.ok++;}
-  else{sm(q.id,Math.max(0,gm(q.id)-1));}
-  qs.total++;qs.idx++;
-  if(qs.idx>=qs.queue.length)qs.done=true;
-  renderQuestion();
-}
 
 function renderSummary(){
   stopAll();
-  const pct=Math.round(qs.ok/qs.total*100);
+  stopSTT();
+  const practiced=Object.keys(scores).length;
+  const avgScore=practiced>0?
+    (Object.values(scores).reduce((s,v)=>s+v,0)/practiced).toFixed(1):'—';
   document.getElementById('quiz-body').innerHTML=`
   <div class="summary">
-    <div><div class="big-num">${pct}%</div><div class="big-sub">${qs.ok}/${qs.total} 正解</div></div>
+    <div>
+      <div class="big-num">${avgScore}</div>
+      <div class="big-sub">セッション平均スコア（${qs.queue.length}問）</div>
+    </div>
     <div class="sum-btns">
       <button class="restart-btn" onclick="startQuiz()">▶ もう一度</button>
       <button class="restart-btn" onclick="renderQuizSettings()">⚙ 設定に戻る</button>
     </div>
+  </div>`;
   </div>`;
 }
 
@@ -917,29 +941,50 @@ function renderList(){
 /* ===== STATS ===== */
 function renderStats(){
   const total=PH.length;
-  const mastered=PH.filter(p=>gm(p.id)>=4).length;
-  const practiced=PH.filter(p=>gm(p.id)>0).length;
-  const avgPct=Math.round(PH.reduce((s,p)=>s+gm(p.id),0)/total/5*100);
+  const scored=PH.filter(p=>gs(p.id)!==null).length;
+  const excellent=PH.filter(p=>(gs(p.id)||0)>=4).length;
+  const weak=PH.filter(p=>{const s=gs(p.id);return s!==null&&s<=2;}).length;
+  const avgScore=scored>0?
+    (PH.filter(p=>gs(p.id)!==null).reduce((s,p)=>s+(gs(p.id)||0),0)/scored).toFixed(1):'—';
+
+  // スコア分布
+  const dist=[1,2,3,4,5].map(n=>{
+    const count=PH.filter(p=>gs(p.id)===n).length;
+    return {n,count};
+  });
+  const distBars=dist.map(d=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+      <span style="font-size:12px;min-width:20px;color:var(--text2)">★${d.n}</span>
+      <div style="flex:1;height:6px;background:var(--border2);border-radius:3px;overflow:hidden">
+        <div style="width:${scored?Math.round(d.count/total*100):0}%;height:100%;background:${d.n<=2?'var(--red)':d.n>=4?'var(--green)':'#f59e0b'};border-radius:3px"></div>
+      </div>
+      <span style="font-size:12px;color:var(--text2);min-width:28px;text-align:right">${d.count}問</span>
+    </div>`).join('');
+
   const cats=[...new Set(PH.map(p=>p.cat))];
   const catRows=cats.map(cat=>{
     const ps=PH.filter(p=>p.cat===cat);
-    const pct=Math.round(ps.reduce((s,p)=>s+gm(p.id),0)/ps.length/5*100);
+    const scoredPs=ps.filter(p=>gs(p.id)!==null);
+    const pct=scoredPs.length?Math.round(scoredPs.reduce((s,p)=>s+(gs(p.id)||0),0)/scoredPs.length/5*100):0;
     return `<div class="cat-row">
       <span class="cat-name">${cat}</span>
       <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div>
-      <span class="cat-pct">${pct}%</span>
+      <span class="cat-pct">${scoredPs.length?pct+'%':'未'}</span>
     </div>`;
   }).join('');
+
   document.getElementById('stats-body').innerHTML=`
     <div class="stat-grid">
-      <div class="stat-card"><div class="stat-val">${mastered}</div><div class="stat-lbl">習得済み（★4+）</div></div>
-      <div class="stat-card"><div class="stat-val">${practiced}</div><div class="stat-lbl">練習済み</div></div>
-      <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-lbl">全フレーズ</div></div>
-      <div class="stat-card"><div class="stat-val">${avgPct}%</div><div class="stat-lbl">平均習熟度</div></div>
+      <div class="stat-card"><div class="stat-val">${excellent}</div><div class="stat-lbl">得意（★4〜5）</div></div>
+      <div class="stat-card"><div class="stat-val">${weak}</div><div class="stat-lbl">苦手（★1〜2）</div></div>
+      <div class="stat-card"><div class="stat-val">${scored}</div><div class="stat-lbl">練習済み</div></div>
+      <div class="stat-card"><div class="stat-val">${avgScore}</div><div class="stat-lbl">平均スコア</div></div>
     </div>
-    <div class="section-head">カテゴリ別習熟度</div>
+    <div class="section-head">スコア分布</div>
+    <div class="cat-block">${distBars}</div>
+    <div class="section-head">カテゴリ別平均スコア</div>
     <div class="cat-block">${catRows}</div>
-    <button class="sub-btn" onclick="if(confirm('習熟度をリセットしますか？')){localStorage.removeItem('mtg_mastery4');mastery={};renderStats();}">習熟度をリセット</button>
+    <button class="sub-btn" onclick="if(confirm('スコアをリセットしますか？')){localStorage.removeItem('mtg_scores');scores={};renderStats();}">スコアをリセット</button>
     <button class="sub-btn" onclick="if(confirm('APIキーを変更しますか？')){apiKey='';localStorage.removeItem('mtg_apikey2');updateApiDot();sw('quiz');renderSetup();}">🔑 APIキーを変更</button>
     <div class="section-head">フレーズデータの入れ替え</div>
     <div class="upload-area" onclick="document.getElementById('csv-input').click()">
