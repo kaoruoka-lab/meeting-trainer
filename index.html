@@ -782,20 +782,11 @@ function showResultBtns(q){
 
 function retryQuestion(){
   const q=qs.queue[qs.idx];
-  // 録音だけ止める。STTは止めない
-  isRecording=false;
-  clearInterval(noSpeechTimer);
-  cancelAnimationFrame(vizRaf);
-  if(mediaRecorder&&mediaRecorder.state!=='inactive'){
-    mediaRecorder.onstop=()=>{};
-    mediaRecorder.stop();
-  }
-  if(micStream)micStream.getTracks().forEach(t=>t.stop());
-  if(audioContext&&audioContext.state!=='closed')audioContext.close();
 
-  // トランスクリプトとコールバックだけリセット
+  // 全部止める
+  stopAll();
+  stopSTT();
   srTranscript='';
-  sttCallback=null;
 
   const ansArea=document.getElementById('ans-area');
   const resultArea=document.getElementById('result-area');
@@ -812,15 +803,30 @@ function retryQuestion(){
       quizWrap.insertBefore(recArea,quizWrap.lastElementChild);
     }
     recArea.style.display='';
+    // STT起動中カウントダウンを表示
     recArea.innerHTML=`
-      <div class="rec-status" id="rec-status">待機中 — 話してください 🎤</div>
+      <div class="rec-status" id="rec-status" style="color:var(--green);font-weight:600">準備中... マイクが起動したら話してください</div>
       <div class="rec-viz" id="rec-viz">${Array.from({length:14},()=>'<div class="rec-bar"></div>').join('')}</div>
-      <div class="cdown-wrap" id="cdown-wrap">&nbsp;</div>
+      <div class="cdown-wrap" id="cdown-wrap">3</div>
       <div class="silence-bar-wrap"><div class="silence-bar" id="silence-bar"></div></div>`;
   }
 
-  // 録音だけ再開（STTはそのまま継続）
-  startRecordingOnly(q);
+  // STTを先に起動
+  startSTT();
+
+  // 3秒カウントダウン表示してからSTTが安定するのを待つ
+  let c=3;
+  const cd=setInterval(()=>{
+    c--;
+    const el=document.getElementById('cdown-wrap');
+    if(el)el.textContent=c>0?c:'🎤';
+    if(c<=0){
+      clearInterval(cd);
+      setStatus('待機中 — 話してください 🎤',false);
+      // 録音開始
+      startRecordingOnly(q);
+    }
+  },500);
 }
 
 async function startRecordingOnly(q){
