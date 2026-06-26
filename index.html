@@ -652,40 +652,35 @@ function runSTT(q){
   const recArea=document.getElementById('rec-area');
   if(recArea)recArea.innerHTML='<div class="analyzing"><div class="spinner"></div>AIが分析中...</div>';
 
-  // STTを止めて最後の結果が確定するのを待つ
+  let done=false;
+  const handle=(transcript)=>{
+    if(done)return;
+    done=true;
+    if(transcript){
+      analyzeText(transcript,q);
+    } else {
+      showAnswerOnly(q);
+    }
+  };
+
   if(srInstance){
     srInstance.onend=()=>{
-      // onend発火＝最後の結果確定済み
-      const transcript=srTranscript.trim();
-      if(transcript){
-        analyzeText(transcript,q);
-      } else {
-        showAnswerOnly(q);
-      }
       srInstance=null;
+      handle(srTranscript.trim());
     };
-    srInstance.onerror=()=>{};
+    srInstance.onerror=()=>{
+      srInstance=null;
+      handle(srTranscript.trim());
+    };
     try{srInstance.stop();}catch(e){
-      setTimeout(()=>{
-        const transcript=srTranscript.trim();
-        if(transcript)analyzeText(transcript,q);
-        else showAnswerOnly(q);
-      },500);
+      setTimeout(()=>handle(srTranscript.trim()),500);
     }
   } else {
-    const transcript=srTranscript.trim();
-    if(transcript)analyzeText(transcript,q);
-    else showAnswerOnly(q);
+    handle(srTranscript.trim());
   }
 
   // タイムアウト保険（5秒）
-  let handled=false;
-  setTimeout(()=>{
-    if(handled)return;
-    const transcript=srTranscript.trim();
-    if(transcript)analyzeText(transcript,q);
-    else showAnswerOnly(q);
-  },5000);
+  setTimeout(()=>handle(srTranscript.trim()),5000);
 }
 
 async function analyzeText(transcript,q){
