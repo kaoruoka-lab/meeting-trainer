@@ -912,7 +912,6 @@ function renderSummary(){
       <button class="restart-btn" onclick="renderQuizSettings()">⚙ 設定に戻る</button>
     </div>
   </div>`;
-  </div>`;
 }
 
 /* ===== LIST ===== */
@@ -928,12 +927,12 @@ function renderList(){
   });
   document.getElementById('list-count').textContent=`${items.length} 件`;
   document.getElementById('phrase-list').innerHTML=items.map(p=>{
-    const m=gm(p.id);
-    const ds=Array.from({length:5},(_,i)=>`<div class="p-dot${i<m?' on':''}"></div>`).join('');
+    const s=gs(p.id);
+    const scoreDisp=s!==null?`${'⭐'.repeat(s)}${'☆'.repeat(5-s)}`:'未練習';
     return `<div class="p-item">
       <div class="p-jp">${p.jp}</div>
       <div class="p-en">${p.en}</div>
-      <div class="p-meta"><span class="p-scene">${p.cat}・${p.scene}</span><div class="p-dots">${ds}</div></div>
+      <div class="p-meta"><span class="p-scene">${p.cat}・${p.scene}</span><span style="font-size:11px;margin-left:auto">${scoreDisp}</span></div>
     </div>`;
   }).join('');
 }
