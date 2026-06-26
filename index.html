@@ -778,39 +778,47 @@ function showResultBtns(q){
 
 function retryQuestion(){
   const q=qs.queue[qs.idx];
-  stopAll();
-  stopSTT();
+  // 録音だけ止める。STTは止めない（再起動による頭切れを防ぐ）
+  isRecording=false;
+  clearInterval(noSpeechTimer);
+  cancelAnimationFrame(vizRaf);
+  if(mediaRecorder&&mediaRecorder.state!=='inactive'){
+    mediaRecorder.onstop=()=>{}; // 前のonstopを無効化
+    mediaRecorder.stop();
+  }
+  if(micStream)micStream.getTracks().forEach(t=>t.stop());
+  if(audioContext&&audioContext.state!=='closed')audioContext.close();
+
+  // STTのトランスクリプトだけリセット
   srTranscript='';
 
-  setTimeout(()=>{
-    const ansArea=document.getElementById('ans-area');
-    const resultArea=document.getElementById('result-area');
-    if(ansArea)ansArea.innerHTML='';
-    if(resultArea)resultArea.innerHTML='';
-    const quizWrap=document.querySelector('.quiz-wrap');
-    if(quizWrap){
-      let recArea=document.getElementById('rec-area');
-      if(!recArea){
-        recArea=document.createElement('div');
-        recArea.id='rec-area';
-        recArea.className='rec-area';
-        quizWrap.insertBefore(recArea,document.getElementById('ans-area')||quizWrap.lastElementChild);
-      }
-      recArea.style.display='';
-      recArea.innerHTML=`
-        <div class="rec-status" id="rec-status">準備中...</div>
-        <div class="rec-viz" id="rec-viz">${Array.from({length:14},()=>'<div class="rec-bar"></div>').join('')}</div>
-        <div class="cdown-wrap" id="cdown-wrap">&nbsp;</div>
-        <div class="silence-bar-wrap"><div class="silence-bar" id="silence-bar"></div></div>`;
+  const ansArea=document.getElementById('ans-area');
+  const resultArea=document.getElementById('result-area');
+  if(ansArea)ansArea.innerHTML='';
+  if(resultArea)resultArea.innerHTML='';
+
+  const quizWrap=document.querySelector('.quiz-wrap');
+  if(quizWrap){
+    let recArea=document.getElementById('rec-area');
+    if(!recArea){
+      recArea=document.createElement('div');
+      recArea.id='rec-area';
+      recArea.className='rec-area';
+      quizWrap.insertBefore(recArea,quizWrap.lastElementChild);
     }
-    // STTを先に起動し、安定してから録音開始
-    startSTT();
-    setTimeout(()=>startAutoRecordingNoSTT(q), 800);
-  }, 600);
+    recArea.style.display='';
+    recArea.innerHTML=`
+      <div class="rec-status" id="rec-status">待機中 — 話してください 🎤</div>
+      <div class="rec-viz" id="rec-viz">${Array.from({length:14},()=>'<div class="rec-bar"></div>').join('')}</div>
+      <div class="cdown-wrap" id="cdown-wrap">&nbsp;</div>
+      <div class="silence-bar-wrap"><div class="silence-bar" id="silence-bar"></div></div>`;
+  }
+
+  // 録音だけ再開（STTはそのまま継続）
+  startRecordingOnly(q);
 }
 
-// Againボタン用：STTは既に起動済みなので録音だけ開始
-async function startAutoRecordingNoSTT(q){
+async function startRecordingOnly(q){
   try{
     micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
     audioContext=new(window.AudioContext||window.webkitAudioContext)();
@@ -826,7 +834,6 @@ async function startAutoRecordingNoSTT(q){
     mediaRecorder.start(100);
     isRecording=true;
     speechDetected=false;
-    setStatus('待機中 — 話してください 🎤',false);
     startCountdown();
     startViz();
   }catch(e){
