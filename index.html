@@ -624,21 +624,48 @@ function stopAll(){
 /* ===== AUDIO PROCESSING ===== */
 async function processAudio(q){
   if(!speechDetected){return;}
-  // Web Speech APIのSR停止
+  // continuous STT停止
   if(window._sr){try{window._sr.stop();}catch(e){}}
   const recArea=document.getElementById('rec-area');
   if(recArea)recArea.innerHTML='<div class="analyzing"><div class="spinner"></div>AIが分析中...</div>';
 
-  // 少し待ってSTT結果を確定させる
-  setTimeout(()=>{
-    const transcript=(window._lastTranscript||'').trim();
-    if(transcript){
-      analyzeText(transcript,q);
-    } else {
-      // STT失敗 → 答えのみ表示
-      showAnswerOnly(q);
-    }
-  },800);
+  // continuous STTで取れていればそれを使う
+  const existingTranscript=(window._lastTranscript||'').trim();
+  if(existingTranscript){
+    analyzeText(existingTranscript,q);
+    return;
+  }
+
+  // Android対策：one-shot STTで再試行
+  if(window.SpeechRecognition||window.webkitSpeechRecognition){
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    const sr=new SR();
+    sr.lang='en-US';sr.continuous=false;sr.interimResults=false;sr.maxAlternatives=1;
+    sr.onresult=e=>{
+      const t=e.results[0][0].transcript;
+      if(t)analyzeText(t,q);
+      else showAnswerOnly(q);
+    };
+    sr.onerror=()=>showAnswerOnly(q);
+    sr.onend=()=>{};
+    // 録音済みaudioのURLを再生しながらSTT
+    const blob=new Blob(audioChunks,{type:'audio/webm'});
+    const url=URL.createObjectURL(blob);
+    const audio=new Audio(url);
+    audio.onended=()=>{setTimeout(()=>{try{sr.stop();}catch(e){}},500);};
+    try{
+      sr.start();
+      // 少し待ってから再生（STTが起動してから）
+      setTimeout(()=>audio.play().catch(()=>{}),300);
+      // タイムアウト保険
+      setTimeout(()=>{
+        try{sr.stop();}catch(e){}
+        if(!(window._lastTranscript||'').trim())showAnswerOnly(q);
+      },8000);
+    }catch(e){showAnswerOnly(q);}
+  } else {
+    showAnswerOnly(q);
+  }
 }
 
 async function sendAudioToClaude(blob,q){
