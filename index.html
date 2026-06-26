@@ -155,6 +155,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
 .bar-fill{height:100%;background:var(--green);border-radius:2px}
 .cat-pct{font-size:11px;color:var(--text2);min-width:30px;text-align:right}
 .sub-btn{align-self:center;padding:8px 16px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:var(--bg2);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit}
+.again-btn{width:100%;padding:11px;border-radius:var(--radius-sm);border:0.5px solid var(--blue,#0C6FC4);background:#E6F1FB;color:#0C447C;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.again-btn:active{background:#cce3f7}
+.upload-area{border:2px dashed var(--border);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;color:var(--text2);font-size:13px;transition:border-color 0.2s}
+.upload-area:hover{border-color:var(--green)}
+.upload-area input{display:none}
+.upload-note{font-size:11px;color:var(--text2);line-height:1.7;padding:8px 12px;background:var(--bg2);border-radius:var(--radius-sm)}
 </style>
 </head>
 <body>
@@ -627,30 +633,39 @@ async function analyzeText(transcript,q){
 }
 
 function buildPrompt(q,transcript){
-  const base=`あなたは英語発音・表現コーチです。日本語ネイティブの学習者が英語会議フレーズを練習しています。
+  return `あなたは厳格なビジネス英語コーチです。日本語ネイティブが海外顧客・海外上長との英語会議で通用するレベルを目指しています。
 
-日本語: 「${q.jp}」
-正解英文: 「${q.en}」
-${transcript?`ユーザーが言った英語: 「${transcript}」`:'（音声ファイルを確認してください）'}
+【お題の日本語】: 「${q.jp}」
+【参考正解例】: 「${q.en}」
+【ユーザーが実際に言った英語】: 「${transcript}」
+
+【採点の基本方針】
+- 採点は「参考正解例との一致度」ではなく「日本語の意味を正しく英語で伝えられているか」で行う
+- 参考正解例と違う表現でも、意味が正確でビジネス英語として自然であれば高得点
+- 参考正解例と同じ内容を別の自然な言い方で言えた場合は「✅ 別の良い表現です」とfixesに入れず褒める
+
+【採点基準（1〜5の整数）】
+5点: 日本語の意味を完全に正確に伝えており、ビジネス英語として自然。発音・表現ともに申し分ない
+4点: 意味は正しく伝わるが、表現が少し不自然・簡略・または発音に軽微な問題あり
+3点: 意味はだいたい合っているが、ニュアンスがズレている、または重要な単語が抜けている
+2点: 意味が少し違う、または聞き手が理解に苦労するレベル
+1点❌: 意味が全く違う、または英語として理解不能
+
+【減点ルール】
+- 意味が変わる単語の脱落・言い間違い → 大きく減点
+- ニュアンスが少しズレる程度 → 小さく減点
+- 発音の問題（th/r/l/v/f の日本語訛り）→ 指摘するが意味が通じれば大きく減点しない
+- 文法的に間違っているが意味が通じる → 指摘して小さく減点
 
 以下のJSON形式のみで返してください（前後に余計なテキスト不要）:
 {
-  "transcribed": "ユーザーが実際に言った英語（聞き取れた通り）",
-  "score": 4,
-  "good": "良かった点を日本語で1文",
-  "fixes": ["改善点1（具体的に日本語で）", "改善点2（あれば）", "改善点3（あれば）"],
-  "tip": "最重要の発音・表現ポイントを日本語で1文（短く）"
-}
-
-採点基準（1〜5の整数）:
-5 = ネイティブに近い自然な発音・表現
-4 = 十分通じる、少し改善の余地あり
-3 = だいたい通じるが発音・表現に課題
-2 = 伝わりにくい、主要な改善が必要
-1 = かなり難しい、大幅な練習が必要
-
-音声が不明瞭・無音の場合: score=2、transcribed="（聞き取れませんでした）"`;
-  return base;
+  "transcribed": "${transcript}",
+  "score": 3,
+  "meaning_check": "日本語の意味と合っているかの判定（「正確」「ほぼ正確」「ズレあり」「大きくズレ」のいずれか）",
+  "good": "良かった点を日本語で1文（本当に良い点のみ、厳しく）",
+  "fixes": ["改善点1（具体的に）", "改善点2（あれば）", "改善点3（あれば）"],
+  "tip": "最優先で直すべき点を日本語で1文（短く）"
+}`;
 }
 
 async function callClaude(messages){
@@ -662,7 +677,7 @@ async function callClaude(messages){
       'anthropic-version':'2023-06-01',
       'anthropic-dangerous-direct-browser-access':'true'
     },
-    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,messages})
+    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:700,messages})
   });
   if(!res.ok)throw new Error('API '+res.status);
   const data=await res.json();
@@ -677,25 +692,33 @@ function showScore(result,q){
   const stars=Array.from({length:5},(_,i)=>i<score?'⭐':'☆').join('');
   const fixes=(result.fixes||[]).filter(Boolean).map(f=>`<div class="score-item">${f}</div>`).join('');
 
+  const meaningColor={
+    '正確':'#085041','ほぼ正確':'#085041','ズレあり':'#633806','大きくズレ':'#b91c1c'
+  }[result.meaning_check]||'var(--text2)';
+  const meaningBg={
+    '正確':'#E1F5EE','ほぼ正確':'#E1F5EE','ズレあり':'#FAEEDA','大きくズレ':'#fdeee7'
+  }[result.meaning_check]||'var(--bg2)';
+
   const ansEl=document.getElementById('ans-area');
   if(ansEl)ansEl.innerHTML=`
     <div class="ans-card">
       <div class="en-main">${q.en}</div>
-      ${q.note?`<div class="note-box">💡 ${q.note}</div>`:''}
+      ${q.note?`<div class="note-box">💡 参考例 — ${q.note}</div>`:'<div class="note-box">💡 上記は参考例です。意味が合っていれば別の表現でもOK</div>'}
     </div>
     <div class="score-card">
       <div class="score-header">
-        <div class="score-title">発音スコア</div>
+        <div class="score-title">採点結果</div>
         <div class="score-right">
           <div class="score-stars">${stars}</div>
           <div class="score-num">${score}/5</div>
         </div>
       </div>
       ${result.transcribed?`<div class="user-said">認識: "${result.transcribed}"</div>`:''}
+      ${result.meaning_check?`<div style="font-size:12px;font-weight:600;padding:6px 10px;border-radius:var(--radius-sm);background:${meaningBg};color:${meaningColor};margin-top:2px">意味の一致: ${result.meaning_check}</div>`:''}
       <div class="score-divider"></div>
       ${result.good?`<div class="score-section"><div class="score-sec-title">✅ 良かった点</div><div class="score-text">${result.good}</div></div>`:''}
       ${fixes?`<div class="score-section"><div class="score-sec-title">📝 改善点</div>${fixes}</div>`:''}
-      ${result.tip?`<div class="score-section"><div class="score-sec-title">🔑 発音のポイント</div><div class="score-text">${result.tip}</div></div>`:''}
+      ${result.tip?`<div class="score-section"><div class="score-sec-title">🔑 最優先ポイント</div><div class="score-text">${result.tip}</div></div>`:''}
     </div>`;
 
   showResultBtns(q);
@@ -719,11 +742,39 @@ function showResultBtns(q){
   if(ra)ra.innerHTML=`
     <div style="display:flex;flex-direction:column;gap:10px;padding-bottom:20px">
       <div class="mastery-row">習熟度:<div class="dots">${dots(m)}</div></div>
+      <button class="again-btn" onclick="retryQuestion()">🔄 もう一度話す</button>
       <div class="result-btns">
         <button class="btn-ng" onclick="mark(false)">✗ もう少し</button>
         <button class="btn-ok" onclick="mark(true)">✓ 言えた！</button>
       </div>
     </div>`;
+}
+
+function retryQuestion(){
+  // 同じ問題で再挑戦
+  const q=qs.queue[qs.idx];
+  const ansArea=document.getElementById('ans-area');
+  const resultArea=document.getElementById('result-area');
+  if(ansArea)ansArea.innerHTML='';
+  if(resultArea)resultArea.innerHTML='';
+  // rec-areaを復活させて再録音
+  const quizWrap=document.querySelector('.quiz-wrap');
+  if(quizWrap){
+    let recArea=document.getElementById('rec-area');
+    if(!recArea){
+      recArea=document.createElement('div');
+      recArea.id='rec-area';
+      recArea.className='rec-area';
+      quizWrap.insertBefore(recArea,ansArea||quizWrap.lastElementChild);
+    }
+    recArea.style.display='';
+    recArea.innerHTML=`
+      <div class="rec-status" id="rec-status">マイクを準備中...</div>
+      <div class="rec-viz" id="rec-viz">${Array.from({length:14},()=>'<div class="rec-bar"></div>').join('')}</div>
+      <div class="cdown-wrap" id="cdown-wrap">&nbsp;</div>
+      <div class="silence-bar-wrap"><div class="silence-bar" id="silence-bar"></div></div>`;
+  }
+  startAutoRecording(q);
 }
 
 function mark(ok){
@@ -797,7 +848,60 @@ function renderStats(){
     <div class="section-head">カテゴリ別習熟度</div>
     <div class="cat-block">${catRows}</div>
     <button class="sub-btn" onclick="if(confirm('習熟度をリセットしますか？')){localStorage.removeItem('mtg_mastery4');mastery={};renderStats();}">習熟度をリセット</button>
-    <button class="sub-btn" onclick="if(confirm('APIキーを変更しますか？')){apiKey='';localStorage.removeItem('mtg_apikey2');updateApiDot();sw('quiz');renderSetup();}">🔑 APIキーを変更</button>`;
+    <button class="sub-btn" onclick="if(confirm('APIキーを変更しますか？')){apiKey='';localStorage.removeItem('mtg_apikey2');updateApiDot();sw('quiz');renderSetup();}">🔑 APIキーを変更</button>
+    <div class="section-head">フレーズデータの入れ替え</div>
+    <div class="upload-area" onclick="document.getElementById('csv-input').click()">
+      📁 CSVファイルをタップして読み込む<br>
+      <small>（No./カテゴリ/シーン/日本語/英語/メモ の形式）</small>
+      <input type="file" id="csv-input" accept=".csv" onchange="loadCSV(event)">
+    </div>
+    <div class="upload-note">
+      CSVの列順: No. / カテゴリ / シーン / 日本語 / 英語 / メモ<br>
+      読み込むと現在のフレーズが置き換わります。<br>
+      デフォルトに戻す場合はページをリロードしてください。
+    </div>`;
+}
+
+/* ===== CSV UPLOAD ===== */
+function loadCSV(event){
+  const file=event.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const lines=e.target.result.split('\n').filter(l=>l.trim());
+      const newPhrases=[];
+      // ヘッダー行をスキップ（1行目がNoや番号で始まる場合）
+      const start=isNaN(parseInt(lines[0].split(',')[0]))?1:0;
+      lines.slice(start).forEach((line,idx)=>{
+        const cols=line.split(',').map(c=>c.trim().replace(/^"|"$/g,''));
+        if(cols.length>=5&&cols[3]&&cols[4]){
+          newPhrases.push({
+            id:parseInt(cols[0])||idx+1,
+            cat:cols[1]||'その他',
+            scene:cols[2]||'',
+            jp:cols[3],
+            en:cols[4],
+            note:cols[5]||''
+          });
+        }
+      });
+      if(newPhrases.length===0){alert('フレーズが読み込めませんでした。CSVの形式を確認してください。');return;}
+      // グローバルのPHを置き換え
+      PH.length=0;
+      newPhrases.forEach(p=>PH.push(p));
+      // CATSも更新
+      CATS.length=0;
+      CATS.push('すべて');
+      [...new Set(PH.map(p=>p.cat))].forEach(c=>CATS.push(c));
+      document.getElementById('hdr-ct').textContent=PH.length+' フレーズ';
+      alert(`✅ ${PH.length}件のフレーズを読み込みました！`);
+      renderStats();
+    }catch(err){
+      alert('読み込みエラー: '+err.message);
+    }
+  };
+  reader.readAsText(file,'UTF-8');
 }
 
 /* ===== INIT ===== */
