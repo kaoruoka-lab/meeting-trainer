@@ -636,22 +636,40 @@ function runSTT(q){
   const recArea=document.getElementById('rec-area');
   if(recArea)recArea.innerHTML='<div class="analyzing"><div class="spinner"></div>AIが分析中...</div>';
 
-  // STTを止めずにその時点のtranscriptを使う
-  // 最後の認識結果が確定するまで少し待つ
-  let attempts=0;
-  const checkTranscript=()=>{
-    const transcript=srTranscript.trim();
-    if(transcript){
-      analyzeText(transcript,q);
-    } else if(attempts<10){
-      // 最大1秒待つ
-      attempts++;
-      setTimeout(checkTranscript,100);
-    } else {
-      showAnswerOnly(q);
+  // STTを止めて最後の結果が確定するのを待つ
+  if(srInstance){
+    srInstance.onend=()=>{
+      // onend発火＝最後の結果確定済み
+      const transcript=srTranscript.trim();
+      if(transcript){
+        analyzeText(transcript,q);
+      } else {
+        showAnswerOnly(q);
+      }
+      srInstance=null;
+    };
+    srInstance.onerror=()=>{};
+    try{srInstance.stop();}catch(e){
+      setTimeout(()=>{
+        const transcript=srTranscript.trim();
+        if(transcript)analyzeText(transcript,q);
+        else showAnswerOnly(q);
+      },500);
     }
-  };
-  setTimeout(checkTranscript,300);
+  } else {
+    const transcript=srTranscript.trim();
+    if(transcript)analyzeText(transcript,q);
+    else showAnswerOnly(q);
+  }
+
+  // タイムアウト保険（5秒）
+  let handled=false;
+  setTimeout(()=>{
+    if(handled)return;
+    const transcript=srTranscript.trim();
+    if(transcript)analyzeText(transcript,q);
+    else showAnswerOnly(q);
+  },5000);
 }
 
 async function analyzeText(transcript,q){
@@ -788,42 +806,40 @@ function retryQuestion(){
   stopSTT();
   srTranscript='';
 
-  const ansArea=document.getElementById('ans-area');
-  const resultArea=document.getElementById('result-area');
-  if(ansArea)ansArea.innerHTML='';
-  if(resultArea)resultArea.innerHTML='';
-
-  const quizWrap=document.querySelector('.quiz-wrap');
-  if(quizWrap){
-    let recArea=document.getElementById('rec-area');
-    if(!recArea){
-      recArea=document.createElement('div');
-      recArea.id='rec-area';
-      recArea.className='rec-area';
-      quizWrap.insertBefore(recArea,quizWrap.lastElementChild);
-    }
-    recArea.style.display='';
-    // STT起動中カウントダウンを表示
-    recArea.innerHTML=`
-      <div class="rec-status" id="rec-status" style="color:var(--green);font-weight:600">準備中... マイクが起動したら話してください</div>
+  // quiz-wrapごと再描画してクリーンな状態にする
+  const pct=Math.round(qs.idx/qs.queue.length*100);
+  document.getElementById('quiz-body').innerHTML=`
+  <div class="quiz-wrap" id="quiz-wrap">
+    <div class="progress-row">
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <span class="prog-txt">${qs.idx+1}/${qs.queue.length}</span>
+    </div>
+    <div class="scene-row">
+      <span class="cat-badge">${q.cat}</span>
+      <span class="scene-txt">${q.scene}</span>
+      <span class="no-txt">No.${q.id}</span>
+    </div>
+    <div class="q-card"><div class="jp-main">${q.jp}</div></div>
+    <div class="rec-area" id="rec-area">
+      <div class="rec-status" id="rec-status" style="color:var(--green);font-weight:600">🎤 マイク起動中...</div>
       <div class="rec-viz" id="rec-viz">${Array.from({length:14},()=>'<div class="rec-bar"></div>').join('')}</div>
       <div class="cdown-wrap" id="cdown-wrap">3</div>
-      <div class="silence-bar-wrap"><div class="silence-bar" id="silence-bar"></div></div>`;
-  }
+      <div class="silence-bar-wrap"><div class="silence-bar" id="silence-bar"></div></div>
+    </div>
+    <div id="ans-area"></div>
+    <div id="result-area"></div>
+  </div>`;
 
-  // STTを先に起動
+  // STTを先に起動してカウントダウン
   startSTT();
-
-  // 3秒カウントダウン表示してからSTTが安定するのを待つ
   let c=3;
   const cd=setInterval(()=>{
     c--;
     const el=document.getElementById('cdown-wrap');
-    if(el)el.textContent=c>0?c:'🎤';
+    if(el)el.textContent=c>0?String(c):'🎤';
     if(c<=0){
       clearInterval(cd);
       setStatus('待機中 — 話してください 🎤',false);
-      // 録音開始
       startRecordingOnly(q);
     }
   },500);
