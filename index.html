@@ -489,6 +489,7 @@ function renderQuestion(){
 
 /* ===== RECORDING ===== */
 async function startAutoRecording(q){
+  window._lastTranscript='';
   try{
     micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
     audioContext=new(window.AudioContext||window.webkitAudioContext)();
@@ -506,6 +507,22 @@ async function startAutoRecording(q){
     isRecording=true;
     speechDetected=false;
     silenceCounter=0;
+
+    // Web Speech APIをリアルタイムで同時起動
+    if(window.SpeechRecognition||window.webkitSpeechRecognition){
+      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+      const sr=new SR();
+      sr.lang='en-US';sr.continuous=true;sr.interimResults=false;
+      sr.onresult=e=>{
+        let t='';
+        for(let i=e.resultIndex;i<e.results.length;i++){
+          if(e.results[i].isFinal)t+=e.results[i][0].transcript+' ';
+        }
+        if(t.trim())window._lastTranscript=((window._lastTranscript||'')+' '+t).trim();
+      };
+      sr.onerror=()=>{};
+      try{sr.start();window._sr=sr;}catch(e){}
+    }
 
     setStatus('待機中 — 話してください 🎤',false);
     startCountdown();
@@ -606,52 +623,27 @@ function stopAll(){
 
 /* ===== AUDIO PROCESSING ===== */
 async function processAudio(q){
-  if(!speechDetected){return;} // スキップ済み
-  setStatus('AIが分析中...',false);
+  if(!speechDetected){return;}
+  // Web Speech APIのSR停止
+  if(window._sr){try{window._sr.stop();}catch(e){}}
   const recArea=document.getElementById('rec-area');
-  if(recArea)recArea.innerHTML='<div class="analyzing"><div class="spinner"></div>AIが発音を分析中...</div>';
+  if(recArea)recArea.innerHTML='<div class="analyzing"><div class="spinner"></div>AIが分析中...</div>';
 
-  // Web Speech APIでテキスト化してからClaude分析
-  const blob=new Blob(audioChunks,{type:'audio/webm'});
-  transcribeAndAnalyze(blob,q);
-}
-
-function transcribeAndAnalyze(blob,q){
-  // Web Speech APIでリアルタイム文字起こし（録音済みblob用にはSTT再実行）
-  if(!window.SpeechRecognition&&!window.webkitSpeechRecognition){
-    // STT不可 → Claudeにaudioを直接送る
-    sendAudioToClaude(blob,q);
-    return;
-  }
-  // 音声を再生しながらSTT（iOSでは直接blob→STTが困難なのでURL経由）
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  const r=new SR();
-  r.lang='en-US';r.interimResults=false;r.maxAlternatives=1;
-  r.onresult=e=>{
-    const transcript=e.results[0][0].transcript;
-    analyzeText(transcript,q);
-  };
-  r.onerror=()=>sendAudioToClaude(blob,q);
-  r.start();
+  // 少し待ってSTT結果を確定させる
+  setTimeout(()=>{
+    const transcript=(window._lastTranscript||'').trim();
+    if(transcript){
+      analyzeText(transcript,q);
+    } else {
+      // STT失敗 → 答えのみ表示
+      showAnswerOnly(q);
+    }
+  },800);
 }
 
 async function sendAudioToClaude(blob,q){
-  const reader=new FileReader();
-  reader.onloadend=async()=>{
-    const b64=reader.result.split(',')[1];
-    const prompt=buildPrompt(q,null);
-    try{
-      const result=await callClaude([{
-        role:'user',
-        content:[
-          {type:'text',text:prompt},
-          {type:'document',source:{type:'base64',media_type:'audio/webm',data:b64}}
-        ]
-      }]);
-      showScore(result,q);
-    }catch(e){showAnswerOnly(q);}
-  };
-  reader.readAsDataURL(blob);
+  // 音声をClaudeに直接送るのではなく、答えのみ表示
+  showAnswerOnly(q);
 }
 
 async function analyzeText(transcript,q){
