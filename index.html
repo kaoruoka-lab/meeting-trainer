@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="会議英語Pro">
+<title>会議英語トレーナー Pro</title>
+<style>
+:root {
+  --bg:#ffffff;--bg2:#f5f5f0;--bg3:#eeede8;
+  --text:#1a1a18;--text2:#6b6b68;
+  --border:#d8d7d2;--border2:#e8e7e2;
+  --green:#1D9E75;--green-bg:#E1F5EE;--green-text:#085041;--green-dark:#0F6E56;
+  --red:#e05a2b;--radius:12px;--radius-sm:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;background:var(--bg2);color:var(--text);min-height:100vh}
+.app{width:100%;max-width:430px;min-height:100vh;display:flex;flex-direction:column;background:var(--bg);margin:0 auto}
+.header{padding:14px 16px 12px;border-bottom:0.5px solid var(--border2);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--bg);z-index:20}
+.header h1{font-size:15px;font-weight:600}
+.hdr-right{display:flex;align-items:center;gap:8px}
+.hdr-sub{font-size:11px;color:var(--text2)}
+.api-dot{width:8px;height:8px;border-radius:50%;background:var(--border)}
+.api-dot.ok{background:var(--green)}
+.tabs{display:flex;border-bottom:0.5px solid var(--border2);position:sticky;top:49px;background:var(--bg);z-index:19}
+.tab{flex:1;padding:11px 0;font-size:12px;text-align:center;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;user-select:none}
+.tab.active{color:var(--text);border-bottom-color:var(--text);font-weight:600}
+.screen{flex:1;overflow-y:auto;display:none;flex-direction:column;-webkit-overflow-scrolling:touch}
+.screen.active{display:flex}
+
+/* Setup */
+.setup-wrap{padding:24px 16px;display:flex;flex-direction:column;gap:16px}
+.setup-title{font-size:16px;font-weight:600}
+.setup-desc{font-size:13px;color:var(--text2);line-height:1.7}
+.setup-lbl{font-size:12px;font-weight:500;color:var(--text2);margin-bottom:6px}
+.setup-input{width:100%;padding:12px 14px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:var(--bg2);font-size:13px;color:var(--text);font-family:monospace;outline:none}
+.setup-input:focus{border-color:var(--green)}
+.setup-btn{width:100%;padding:13px;border-radius:var(--radius);border:none;background:var(--green);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+.setup-btn:active{background:var(--green-dark)}
+.setup-note{font-size:11px;color:var(--text2);line-height:1.7;padding:10px 12px;background:var(--bg2);border-radius:var(--radius-sm)}
+
+/* Quiz settings */
+.quiz-settings{padding:16px;display:flex;flex-direction:column;gap:14px}
+.setting-group{display:flex;flex-direction:column;gap:8px}
+.setting-lbl{font-size:12px;color:var(--text2);font-weight:500}
+.seg{display:flex;border:0.5px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.seg-btn{flex:1;padding:8px 4px;font-size:12px;cursor:pointer;background:var(--bg);color:var(--text2);border:none;border-right:0.5px solid var(--border);font-family:inherit}
+.seg-btn:last-child{border-right:none}
+.seg-btn.active{background:var(--bg2);color:var(--text);font-weight:600}
+.cat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.cat-opt{padding:8px 10px;border-radius:var(--radius-sm);border:0.5px solid var(--border);font-size:11px;cursor:pointer;background:var(--bg);color:var(--text2);text-align:center;font-family:inherit}
+.cat-opt.active{border-color:var(--green);background:var(--green-bg);color:var(--green-text);font-weight:600}
+.start-btn{width:100%;padding:14px;border-radius:var(--radius);border:none;background:var(--green);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:4px}
+.start-btn:active{background:var(--green-dark)}
+
+/* Quiz */
+.quiz-wrap{padding:14px;display:flex;flex-direction:column;gap:12px}
+.progress-row{display:flex;align-items:center;gap:10px}
+.progress-bar{flex:1;height:3px;background:var(--border2);border-radius:2px}
+.progress-fill{height:100%;background:var(--green);border-radius:2px;transition:width 0.3s}
+.prog-txt{font-size:12px;color:var(--text2);white-space:nowrap}
+.scene-row{display:flex;align-items:center;gap:6px}
+.cat-badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;background:var(--green-bg);color:var(--green-text);white-space:nowrap}
+.scene-txt{font-size:11px;color:var(--text2)}
+.no-txt{font-size:11px;color:var(--text2);margin-left:auto}
+.q-card{background:var(--bg2);border-radius:var(--radius);padding:22px 18px;text-align:center;min-height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+.jp-main{font-size:18px;font-weight:500;line-height:1.6}
+
+/* Recording */
+.rec-area{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;background:var(--bg2);border-radius:var(--radius)}
+.rec-status{font-size:13px;font-weight:500}
+.rec-viz{display:flex;align-items:center;justify-content:center;gap:3px;height:36px}
+.rec-bar{width:3px;min-height:4px;background:var(--border);border-radius:2px;transition:height 0.08s}
+.rec-bar.active{background:var(--red)}
+.cdown-wrap{font-size:32px;font-weight:600;color:var(--green);min-height:40px;display:flex;align-items:center;justify-content:center}
+.cdown-wrap.urgent{color:var(--red)}
+.silence-bar-wrap{width:100%;height:3px;background:var(--border2);border-radius:2px;overflow:hidden}
+.silence-bar{height:100%;background:var(--green);border-radius:2px;transition:width 0.1s linear;width:0%}
+
+/* Answer */
+.ans-card{background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:10px}
+.en-main{font-size:16px;font-weight:600;color:var(--green-dark);line-height:1.5}
+.note-box{font-size:12px;color:var(--text2);padding:7px 10px;background:var(--bg2);border-radius:var(--radius-sm)}
+
+/* Score */
+.score-card{background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:12px}
+.score-header{display:flex;align-items:center;justify-content:space-between}
+.score-title{font-size:13px;font-weight:600}
+.score-right{display:flex;align-items:center;gap:8px}
+.score-stars{display:flex;gap:2px;font-size:17px}
+.score-num{font-size:22px;font-weight:700;color:var(--green)}
+.score-divider{height:0.5px;background:var(--border2)}
+.score-section{display:flex;flex-direction:column;gap:5px}
+.score-sec-title{font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.04em}
+.score-text{font-size:13px;line-height:1.6}
+.score-item{font-size:13px;line-height:1.6;padding-left:12px;position:relative}
+.score-item::before{content:'•';position:absolute;left:0;color:var(--green)}
+.user-said{font-size:12px;color:var(--text2);font-style:italic;padding:6px 10px;background:var(--bg2);border-radius:var(--radius-sm)}
+.analyzing{display:flex;align-items:center;gap:10px;padding:16px;font-size:13px;color:var(--text2)}
+.spinner{width:18px;height:18px;border:2px solid var(--border2);border-top-color:var(--green);border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Result */
+.mastery-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2)}
+.dots{display:flex;gap:4px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--border)}
+.dot.on{background:var(--green)}
+.result-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn-ng{padding:13px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:var(--bg2);color:var(--text2);font-size:14px;cursor:pointer;font-weight:500;font-family:inherit}
+.btn-ok{padding:13px;border-radius:var(--radius-sm);border:0.5px solid var(--green);background:var(--green-bg);color:var(--green-text);font-size:14px;cursor:pointer;font-weight:600;font-family:inherit}
+.btn-ng:active{background:var(--bg3)}
+.btn-ok:active{background:#c5eddf}
+
+/* Summary */
+.summary{text-align:center;padding:40px 20px;display:flex;flex-direction:column;align-items:center;gap:16px}
+.big-num{font-size:56px;font-weight:600;color:var(--green)}
+.big-sub{font-size:14px;color:var(--text2)}
+.sum-btns{display:flex;flex-direction:column;gap:8px;width:100%;max-width:240px}
+.restart-btn{padding:12px 20px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:var(--bg2);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit}
+
+/* List */
+.list-top{padding:12px 14px;display:flex;flex-direction:column;gap:10px;border-bottom:0.5px solid var(--border2);position:sticky;top:82px;background:var(--bg);z-index:10}
+.search-input{width:100%;padding:10px 14px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:var(--bg2);font-size:14px;color:var(--text);font-family:inherit;outline:none}
+.search-input:focus{border-color:var(--green)}
+.filter-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.filter-row::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;padding:6px 12px;border-radius:20px;border:0.5px solid var(--border);font-size:11px;cursor:pointer;background:var(--bg);color:var(--text2);white-space:nowrap;font-family:inherit}
+.chip.active{border-color:var(--text);color:var(--text);font-weight:600}
+.list-count{font-size:12px;color:var(--text2);padding:8px 14px 4px}
+.phrase-list{padding:8px 14px 20px;display:flex;flex-direction:column;gap:7px}
+.p-item{padding:12px;border-radius:var(--radius-sm);border:0.5px solid var(--border2);cursor:pointer;display:flex;flex-direction:column;gap:5px}
+.p-item:active{background:var(--bg2)}
+.p-jp{font-size:13px;font-weight:500;line-height:1.4}
+.p-en{font-size:12px;color:var(--green-dark);line-height:1.4}
+.p-meta{display:flex;align-items:center;gap:6px;margin-top:2px}
+.p-scene{font-size:10px;color:var(--text2)}
+.p-dots{display:flex;gap:3px;margin-left:auto}
+.p-dot{width:6px;height:6px;border-radius:50%;background:var(--border)}
+.p-dot.on{background:var(--green)}
+
+/* Stats */
+.stats-wrap{padding:14px;display:flex;flex-direction:column;gap:12px;padding-bottom:40px}
+.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.stat-card{background:var(--bg2);border-radius:var(--radius-sm);padding:14px;text-align:center}
+.stat-val{font-size:28px;font-weight:600}
+.stat-lbl{font-size:11px;color:var(--text2);margin-top:3px}
+.section-head{font-size:13px;font-weight:600;padding:4px 0 2px}
+.cat-block{background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--radius);padding:12px 14px}
+.cat-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border2)}
+.cat-row:last-child{border-bottom:none;padding-bottom:0}
+.cat-row:first-child{padding-top:0}
+.cat-name{font-size:11px;min-width:88px;color:var(--text2)}
+.bar-wrap{flex:1;height:4px;background:var(--border2);border-radius:2px}
+.bar-fill{height:100%;background:var(--green);border-radius:2px}
+.cat-pct{font-size:11px;color:var(--text2);min-width:30px;text-align:right}
+.sub-btn{align-self:center;padding:8px 16px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:var(--bg2);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>🎙 会議英語トレーナー Pro</h1>
+    <div class="hdr-right">
+      <div class="api-dot" id="api-dot"></div>
+      <span class="hdr-sub" id="hdr-ct"></span>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="sw('quiz')">練習</div>
+    <div class="tab" onclick="sw('list')">一覧</div>
+    <div class="tab" onclick="sw('stats')">習熟度</div>
+  </div>
+  <div id="quiz" class="screen active"><div id="quiz-body"></div></div>
+  <div id="list" class="screen">
+    <div class="list-top">
+      <input class="search-input" id="search" placeholder="フレーズを検索..." oninput="renderList()">
+      <div class="filter-row" id="filter-row"></div>
+    </div>
+    <div class="list-count" id="list-count"></div>
+    <div class="phrase-list" id="phrase-list"></div>
+  </div>
+  <div id="stats" class="screen"><div class="stats-wrap" id="stats-body"></div></div>
+</div>
+
+<script>
+const PH=[
+{id:1,cat:"会議開始",scene:"音声確認",jp:"聞こえていますでしょうか。",en:"Can you hear me clearly?",note:"オンラインMTG冒頭"},
+{id:2,cat:"会議開始",scene:"音声確認",jp:"私の声は問題なく聞こえていますか。",en:"Is my audio okay?",note:"カジュアルに使える"},
+{id:3,cat:"会議開始",scene:"音声確認",jp:"画面は見えていますか。",en:"Can you see my screen?",note:"画面共有時"},
+{id:4,cat:"会議開始",scene:"参加トラブル",jp:"すみません、入るのに少し手間取りました。",en:"Sorry, I had a little trouble joining.",note:"入室が遅れた時"},
+{id:5,cat:"会議開始",scene:"開始挨拶",jp:"本日はお時間をいただきありがとうございます。",en:"Thank you for your time today.",note:"社外にも使える"},
+{id:6,cat:"会議開始",scene:"開始挨拶",jp:"本日はご参加ありがとうございます。",en:"Thanks for joining today.",note:"自分が主催したMTG"},
+{id:7,cat:"会議開始",scene:"開始挨拶",jp:"本日はお時間を取ってご参加いただきありがとうございます。",en:"Thank you for taking the time to join today.",note:"顧客向け・丁寧"},
+{id:8,cat:"会議開始",scene:"開始挨拶",jp:"この会議を設定していただきありがとうございます。",en:"Thank you for setting this up.",note:"相手が会議設定した場合"},
+{id:9,cat:"会議開始",scene:"自己紹介",jp:"簡単に自己紹介させてください。",en:"Let me briefly introduce myself.",note:"初回MTG"},
+{id:10,cat:"会議開始",scene:"自己紹介",jp:"Kaoru Okaです。Kaoruと呼んでください。",en:"My name is Kaoru Oka. Please call me Kaoru.",note:"初回MTGで自然"},
+{id:11,cat:"会議開始",scene:"役割説明",jp:"私は日本語ローカリゼーションとレビュー調整を担当しています。",en:"I'm responsible for Japanese localization and review coordination.",note:""},
+{id:12,cat:"会議開始",scene:"役割説明",jp:"私は英日ローカリゼーションの進行管理を担当しています。",en:"I manage the English-to-Japanese localization workflow.",note:""},
+{id:13,cat:"会議開始",scene:"役割説明",jp:"主にスケジュール調整とベンダー対応を担当しています。",en:"I mainly handle schedule coordination and vendor communication.",note:""},
+{id:14,cat:"会議開始",scene:"役割説明",jp:"ローカリゼーションPMと顧客対応の経験があります。",en:"I have experience in localization project management and client communication.",note:""},
+{id:15,cat:"会議開始",scene:"目的確認",jp:"本日の目的は、翻訳範囲とスケジュールの認識を合わせることです。",en:"The purpose of today's meeting is to align on the translation scope and schedule.",note:""},
+{id:16,cat:"会議開始",scene:"目的確認",jp:"今日は進捗を確認し、懸念点について話し合いたいと思います。",en:"Today, I'd like to go over the progress and discuss any concerns.",note:""},
+{id:17,cat:"会議開始",scene:"アジェンダ共有",jp:"まず進捗を確認して、その後で未解決の質問について話しましょう。",en:"Let's first go over the progress, and then discuss the open questions.",note:""},
+{id:18,cat:"会議開始",scene:"アジェンダ共有",jp:"簡潔にお話しします。",en:"I'll keep it brief.",note:""},
+{id:19,cat:"聞き返し・確認",scene:"聞き返し",jp:"すみません、もう一度言っていただけますか。",en:"Sorry, could you say that again?",note:"最重要"},
+{id:20,cat:"聞き返し・確認",scene:"聞き返し",jp:"質問をもう一度お願いできますか。",en:"Could you repeat the question?",note:""},
+{id:21,cat:"聞き返し・確認",scene:"聞き返し",jp:"最後の部分が聞き取れませんでした。",en:"I didn't catch the last part.",note:"自然"},
+{id:22,cat:"聞き返し・確認",scene:"聞き返し",jp:"すみません、そこを聞き逃しました。",en:"Sorry, I missed that part.",note:""},
+{id:23,cat:"聞き返し・確認",scene:"速度調整",jp:"もう少しゆっくり話していただけますか。",en:"Could you speak a little more slowly?",note:"オンラインMTGで重要"},
+{id:24,cat:"聞き返し・確認",scene:"言い換え依頼",jp:"別の言い方で説明していただけますか。",en:"Could you rephrase that?",note:""},
+{id:25,cat:"聞き返し・確認",scene:"背景確認",jp:"もう少し背景を教えていただけますか。",en:"Could you give me a little more context?",note:"万能"},
+{id:26,cat:"聞き返し・確認",scene:"理解確認",jp:"正しく理解できているか確認させてください。",en:"Let me make sure I understood correctly.",note:"かなり使う"},
+{id:27,cat:"聞き返し・確認",scene:"理解確認",jp:"私の理解を確認させてください。",en:"Let me confirm my understanding.",note:""},
+{id:28,cat:"聞き返し・確認",scene:"理解確認",jp:"つまり、スケジュールを更新する必要があるという理解で合っていますか。",en:"So, we need to update the schedule, correct?",note:""},
+{id:29,cat:"聞き返し・確認",scene:"期限確認",jp:"確認ですが、締切は来週金曜日で合っていますか。",en:"Just to confirm, the deadline is next Friday, right?",note:""},
+{id:30,cat:"聞き返し・確認",scene:"例示依頼",jp:"例を挙げていただけますか。",en:"Could you give me an example?",note:""},
+{id:31,cat:"聞き返し・確認",scene:"メール依頼",jp:"その内容をメールで送っていただけますか。",en:"Could you send that to me by email?",note:""},
+{id:32,cat:"聞き返し・確認",scene:"チャット依頼",jp:"チャットに貼っていただけますか。",en:"Could you put that in the chat?",note:""},
+{id:33,cat:"進捗確認・報告",scene:"進捗確認",jp:"この件の進捗を簡単に教えていただけますか。",en:"Could you give me a quick update on this?",note:"万能"},
+{id:34,cat:"進捗確認・報告",scene:"進捗確認",jp:"現在の状況を教えていただけますか。",en:"Could you give me an update on the current status?",note:""},
+{id:35,cat:"進捗確認・報告",scene:"期限確認",jp:"締切にはまだ間に合いそうですか。",en:"Are we still on track for the deadline?",note:""},
+{id:36,cat:"進捗確認・報告",scene:"完了率確認",jp:"レビューはどのくらい進んでいますか。",en:"How far along is the review?",note:""},
+{id:37,cat:"進捗確認・報告",scene:"ブロッカー確認",jp:"何か進行を止めているものはありますか。",en:"Is anything blocking your progress?",note:""},
+{id:38,cat:"進捗確認・報告",scene:"問題確認",jp:"現時点で何か問題はありますか。",en:"Are there any issues at this point?",note:""},
+{id:39,cat:"進捗確認・報告",scene:"遅延確認",jp:"遅れている理由を教えていただけますか。",en:"Could you explain what caused the delay?",note:""},
+{id:40,cat:"進捗確認・報告",scene:"優先度確認",jp:"どのタスクを優先すべきでしょうか。",en:"Which task should we prioritize?",note:""},
+{id:41,cat:"進捗確認・報告",scene:"支援確認",jp:"追加サポートは必要そうですか。",en:"Do we need any additional support?",note:""},
+{id:42,cat:"進捗確認・報告",scene:"状況共有",jp:"現在の状況はおおむね予定通りです。",en:"Things are mostly on track.",note:"口頭で自然"},
+{id:43,cat:"進捗確認・報告",scene:"状況共有",jp:"プロジェクトは予定通り進んでいます。",en:"The project is on track.",note:""},
+{id:44,cat:"進捗確認・報告",scene:"遅延報告",jp:"少しスケジュールから遅れています。",en:"We are slightly behind schedule.",note:""},
+{id:45,cat:"進捗確認・報告",scene:"完了報告",jp:"一次レビューは完了しました。",en:"We've completed the first round of review.",note:""},
+{id:46,cat:"進捗確認・報告",scene:"進行中",jp:"翻訳はまだ進行中です。",en:"The translation is still in progress.",note:""},
+{id:47,cat:"進捗確認・報告",scene:"待ち状況",jp:"クライアントからのフィードバック待ちです。",en:"We're waiting for feedback from the client.",note:"頻出"},
+{id:48,cat:"進捗確認・報告",scene:"見込み",jp:"水曜日までに完了する見込みです。",en:"We expect to finish it by Wednesday.",note:""},
+{id:49,cat:"進捗確認・報告",scene:"問題なし",jp:"現時点で大きな問題はありません。",en:"There are no major issues at this point.",note:""},
+{id:50,cat:"進捗確認・報告",scene:"議題提示",jp:"相談したい課題が1つあります。",en:"There's one issue I'd like to discuss.",note:""},
+{id:51,cat:"タスク依頼",scene:"依頼",jp:"一次レビューをお願いできますか。",en:"Could you take the first review?",note:""},
+{id:52,cat:"タスク依頼",scene:"依頼",jp:"この文書の最終確認をお願いできますか。",en:"Could you do a final check on this document?",note:""},
+{id:53,cat:"タスク依頼",scene:"アサイン",jp:"これはレビュー担当者に割り当てます。",en:"I'll assign this to the reviewer.",note:""},
+{id:54,cat:"タスク依頼",scene:"優先依頼",jp:"この文書を優先してください。",en:"Please prioritize this document.",note:""},
+{id:55,cat:"タスク依頼",scene:"優先依頼",jp:"この項目を優先できますか。",en:"Would it be possible to prioritize this item?",note:"丁寧"},
+{id:56,cat:"タスク依頼",scene:"用語確認",jp:"まず用語を確認していただけますか。",en:"Could you check the terminology first?",note:""},
+{id:57,cat:"タスク依頼",scene:"分担",jp:"翻訳、レビュー、最終確認に分けましょう。",en:"Let's split this into translation, review, and final check.",note:""},
+{id:58,cat:"タスク依頼",scene:"期限指定",jp:"本日中に確認いただくことは可能でしょうか。",en:"Would it be possible to check this by the end of today?",note:""},
+{id:59,cat:"タスク依頼",scene:"対応可否確認",jp:"このタスクを担当いただくことは可能ですか。",en:"Would you be able to take this on?",note:""},
+{id:60,cat:"タスク依頼",scene:"注意点共有",jp:"特に用語の一貫性に注意してください。",en:"Please pay special attention to terminology consistency.",note:""},
+{id:61,cat:"タスク依頼",scene:"完了連絡依頼",jp:"完了したら知らせてください。",en:"Please let me know once it's done.",note:""},
+{id:62,cat:"タスク依頼",scene:"資料依頼",jp:"最新版のファイルを共有していただけますか。",en:"Could you share the latest file?",note:""},
+{id:63,cat:"タスク依頼",scene:"資料依頼",jp:"参考資料を送っていただけますか。",en:"Could you send us the reference materials?",note:""},
+{id:64,cat:"原文・要件確認",scene:"意味確認",jp:"この文が何を指しているのか明確にしていただけますか。",en:"Could you clarify what this sentence is referring to?",note:""},
+{id:65,cat:"原文・要件確認",scene:"意図確認",jp:"この表現の意図を確認させてください。",en:"Let me confirm the intent behind this wording.",note:""},
+{id:66,cat:"原文・要件確認",scene:"機能確認",jp:"この機能は開発者のみが利用できるという意味でしょうか。",en:"Do you mean this feature is only available to developers?",note:""},
+{id:67,cat:"原文・要件確認",scene:"用語確認",jp:"この用語はPlayStationプラットフォーム固有のものですか。",en:"Is this term specific to the PlayStation platform?",note:""},
+{id:68,cat:"原文・要件確認",scene:"トーン確認",jp:"原文のトーンを維持すべきですか、それとも日本語として自然に調整すべきですか。",en:"Should we keep the original tone, or adjust it to sound more natural in Japanese?",note:""},
+{id:69,cat:"原文・要件確認",scene:"対象読者確認",jp:"この文書の主な読者は開発者でしょうか。",en:"Is this document mainly for developers?",note:""},
+{id:70,cat:"原文・要件確認",scene:"範囲確認",jp:"今回の翻訳範囲を確認させてください。",en:"Let me confirm the scope of this translation.",note:""},
+{id:71,cat:"原文・要件確認",scene:"仕様確認",jp:"この部分は最新仕様に基づいていますか。",en:"Is this part based on the latest specification?",note:""},
+{id:72,cat:"原文・要件確認",scene:"原文未確定",jp:"原文がまだ確定していません。",en:"The source text is not finalized yet.",note:"リスク説明"},
+{id:73,cat:"原文・要件確認",scene:"文脈不足",jp:"一部の文字列は文脈がないと不明確です。",en:"Some strings are unclear without context.",note:""},
+{id:74,cat:"原文・要件確認",scene:"判断保留",jp:"不正確な回答は避けたいので、確認してご連絡します。",en:"I don't want to give you an inaccurate answer, so let me check and get back to you.",note:"超重要"},
+{id:75,cat:"品質・フィードバック",scene:"直訳指摘",jp:"翻訳は正確ですが、日本語として少し直訳調に聞こえます。",en:"The translation is accurate, but it sounds a little too literal in Japanese.",note:""},
+{id:76,cat:"品質・フィードバック",scene:"自然さ指摘",jp:"意味は正しいですが、表現はもう少し自然にできます。",en:"The meaning is correct, but the wording could be more natural.",note:""},
+{id:77,cat:"品質・フィードバック",scene:"分かりやすさ",jp:"この文は読み手にとって分かりにくいかもしれません。",en:"This sentence might be confusing for the reader.",note:""},
+{id:78,cat:"品質・フィードバック",scene:"書き換え提案",jp:"日本の開発者にとって分かりやすくするため、書き換えが必要かもしれません。",en:"We may need to rewrite this to make it easier for Japanese developers to understand.",note:""},
+{id:79,cat:"品質・フィードバック",scene:"用語統一",jp:"用語の一貫性を確認する必要があります。",en:"We need to check the terminology consistency.",note:""},
+{id:80,cat:"品質・フィードバック",scene:"構成改善",jp:"ページ構成は改善できると思います。",en:"The page structure could be improved.",note:""},
+{id:81,cat:"品質・フィードバック",scene:"情報配置",jp:"この情報はもう少し上に配置した方がよいかもしれません。",en:"It might be better to move this information higher up on the page.",note:""},
+{id:82,cat:"品質・フィードバック",scene:"正確性確認",jp:"この訳が原文の意図を正しく反映しているか確認したいです。",en:"I'd like to check whether this translation reflects the original intent.",note:""},
+{id:83,cat:"品質・フィードバック",scene:"改善提案",jp:"より明確にするため、この文を2つに分けてもよいと思います。",en:"To make it clearer, I think we can split this sentence into two.",note:""},
+{id:84,cat:"品質・フィードバック",scene:"肯定＋改善",jp:"全体的には良いですが、いくつか表現を調整した方がよいです。",en:"Overall, it looks good, but we should adjust a few expressions.",note:""},
+{id:85,cat:"スケジュール調整",scene:"調整提案",jp:"スケジュールを調整する必要があるかもしれません。",en:"We may need to adjust the schedule.",note:"万能"},
+{id:86,cat:"スケジュール調整",scene:"延長依頼",jp:"締切を1営業日延ばすことは可能でしょうか。",en:"Would it be possible to extend the deadline by one business day?",note:""},
+{id:87,cat:"スケジュール調整",scene:"延長依頼",jp:"レビューにもう少し時間が必要かもしれません。",en:"We may need a little more time for the review.",note:""},
+{id:88,cat:"スケジュール調整",scene:"優先納品",jp:"重要度の高い部分を先に納品できます。",en:"We can deliver the highest-priority section first.",note:""},
+{id:89,cat:"スケジュール調整",scene:"範囲調整",jp:"締切に間に合わせるには、作業範囲を絞る必要があります。",en:"We may need to narrow the scope to meet the deadline.",note:""},
+{id:90,cat:"スケジュール調整",scene:"内部確認",jp:"チームに確認してご連絡します。",en:"I'll check with the team and get back to you.",note:"頻出"},
+{id:91,cat:"スケジュール調整",scene:"リスク共有",jp:"このスケジュールだと品質リスクが出る可能性があります。",en:"This schedule may create some quality risks.",note:""},
+{id:92,cat:"スケジュール調整",scene:"リスク共有",jp:"これにより納期に影響が出る可能性があります。",en:"This may affect the delivery date.",note:""},
+{id:93,cat:"スケジュール調整",scene:"代替案",jp:"代替案として、レビューを2段階に分けることができます。",en:"One option is to split the review into two stages.",note:""},
+{id:94,cat:"スケジュール調整",scene:"確認依頼",jp:"明日までにスケジュールをご確認いただけますか。",en:"Could you confirm the schedule by tomorrow?",note:""},
+{id:95,cat:"スケジュール調整",scene:"遅延報告",jp:"レビューに想定より時間がかかっています。",en:"The review is taking longer than expected.",note:""},
+{id:96,cat:"スケジュール調整",scene:"分量超過",jp:"想定よりも分量が多いです。",en:"The volume is larger than expected.",note:""},
+{id:97,cat:"スケジュール調整",scene:"調整完了",jp:"更新後のスケジュールを会議後に共有します。",en:"I'll share the updated schedule after the meeting.",note:""},
+{id:98,cat:"課題・リスク",scene:"懸念共有",jp:"主な懸念はスケジュールが厳しいことです。",en:"The main concern is the tight schedule.",note:""},
+{id:99,cat:"課題・リスク",scene:"優先度確認",jp:"優先順位を明確にする必要があります。",en:"We need to clarify the priorities.",note:""},
+{id:100,cat:"課題・リスク",scene:"顧客確認",jp:"進める前にクライアントの確認が必要です。",en:"We need the client's confirmation before moving forward.",note:""},
+{id:101,cat:"課題・リスク",scene:"即答回避",jp:"今、正確な情報は手元にありません。",en:"I don't have the exact information right now.",note:"逃げフレーズ"},
+{id:102,cat:"課題・リスク",scene:"即答回避",jp:"まだ確実ではありませんが、確認できます。",en:"I'm not sure yet, but I can check.",note:""},
+{id:103,cat:"課題・リスク",scene:"即答回避",jp:"今すぐ答えはありませんが、会議後に確認して連絡します。",en:"I don't have the answer right now, but I'll follow up after the meeting.",note:"超実用"},
+{id:104,cat:"課題・リスク",scene:"社内確認",jp:"社内で確認する必要があるかもしれません。",en:"I may need to check internally.",note:""},
+{id:105,cat:"課題・リスク",scene:"対応宣言",jp:"それを私のアクションアイテムとして対応します。",en:"I'll take that as an action item.",note:""},
+{id:106,cat:"課題・リスク",scene:"別途相談",jp:"この件は会議後に相談してもよいですか。",en:"Could we discuss this after the meeting?",note:""},
+{id:107,cat:"課題・リスク",scene:"現時点の理解",jp:"確実ではありませんが、私の現時点の理解ではそうです。",en:"I'm not sure, but my current understanding is yes.",note:""},
+{id:108,cat:"意見・提案",scene:"同意",jp:"その点には同意します。",en:"I agree with you on that point.",note:""},
+{id:109,cat:"意見・提案",scene:"別意見",jp:"少し違う見方をしています。",en:"I see it a little differently.",note:"やわらかい反論"},
+{id:110,cat:"意見・提案",scene:"可能性",jp:"それは可能だと思います。",en:"I think that should be possible.",note:""},
+{id:111,cat:"意見・提案",scene:"難しさ",jp:"それは少し難しいかもしれません。",en:"That might be a little difficult.",note:""},
+{id:112,cat:"意見・提案",scene:"課題整理",jp:"私の理解では、主な課題は2つあります。",en:"My understanding is that there are two main issues.",note:""},
+{id:113,cat:"意見・提案",scene:"良い指摘",jp:"それは良いご指摘です。",en:"That's a good point.",note:""},
+{id:114,cat:"意見・提案",scene:"提案",jp:"まず小さい範囲で試して、品質を確認しましょう。",en:"Let's test it on a small scope first and check the quality.",note:""},
+{id:115,cat:"意見・提案",scene:"提案",jp:"この工程はAIを使って効率化できるかもしれません。",en:"We might be able to make this process more efficient by using AI.",note:""},
+{id:116,cat:"AI・MT活用",scene:"MT利用",jp:"初稿として機械翻訳を使うことはできますが、人によるレビューは必要です。",en:"We can use machine translation as a first draft, but human review is still necessary.",note:""},
+{id:117,cat:"AI・MT活用",scene:"AI品質",jp:"AIは一貫性の改善に役立ちますが、用語は慎重に確認する必要があります。",en:"AI can help improve consistency, but we need to check the terminology carefully.",note:""},
+{id:118,cat:"AI・MT活用",scene:"MTPE適性",jp:"この種のコンテンツはMTPEに向いているかもしれません。",en:"This type of content may be suitable for MTPE.",note:""},
+{id:119,cat:"AI・MT活用",scene:"プロセス定義",jp:"AI出力を使う前に、レビュープロセスを定義すべきです。",en:"We should define the review process before using AI output.",note:""},
+{id:120,cat:"AI・MT活用",scene:"スタイル確認",jp:"AI出力を既存のスタイルガイドと比較しましょう。",en:"Let's compare the AI output with the existing style guide.",note:""},
+{id:121,cat:"AI・MT活用",scene:"リスク共有",jp:"AI出力には誤訳や不自然な表現が含まれる可能性があります。",en:"AI output may include mistranslations or unnatural wording.",note:""},
+{id:122,cat:"AI・MT活用",scene:"品質担保",jp:"最終的な品質は人間のレビューで担保する必要があります。",en:"The final quality needs to be ensured through human review.",note:""},
+{id:123,cat:"AI・MT活用",scene:"用語集活用",jp:"用語集を使うことで、AI翻訳の一貫性を改善できます。",en:"Using a glossary can improve the consistency of AI translation.",note:""},
+{id:124,cat:"顧客・海外対応",scene:"顧客確認",jp:"この点についてクライアントに確認します。",en:"I'll confirm this point with the client.",note:"頻出"},
+{id:125,cat:"顧客・海外対応",scene:"顧客確認",jp:"クライアントから回答があり次第、共有します。",en:"I'll share the update once we hear back from the client.",note:""},
+{id:126,cat:"顧客・海外対応",scene:"海外拠点確認",jp:"海外チームの認識も確認したいです。",en:"I'd like to confirm the overseas team's understanding as well.",note:""},
+{id:127,cat:"顧客・海外対応",scene:"役割分担",jp:"日本側でレビューを担当し、海外側で原文確認をお願いします。",en:"The Japan side will handle the review, and the overseas side will confirm the source text.",note:""},
+{id:128,cat:"顧客・海外対応",scene:"期待値調整",jp:"期待値を合わせるため、納品範囲を確認させてください。",en:"To align expectations, let me confirm the delivery scope.",note:""},
+{id:129,cat:"顧客・海外対応",scene:"丁寧な依頼",jp:"可能であれば、本日中にフィードバックをいただけると助かります。",en:"If possible, we would appreciate your feedback by the end of today.",note:""},
+{id:130,cat:"顧客・海外対応",scene:"懸念確認",jp:"懸念点があれば教えてください。",en:"Please let me know if you have any concerns.",note:""},
+{id:131,cat:"顧客・海外対応",scene:"追加確認",jp:"追加で確認が必要な点はありますか。",en:"Are there any other points we need to confirm?",note:""},
+{id:132,cat:"顧客・海外対応",scene:"認識合わせ",jp:"念のため、認識を合わせておきたいです。",en:"I'd like to make sure we're on the same page.",note:"超便利"},
+{id:133,cat:"顧客・海外対応",scene:"合意確認",jp:"この進め方で問題ないでしょうか。",en:"Does this approach work for you?",note:""},
+{id:134,cat:"会議終了",scene:"要約",jp:"本日の内容をまとめます。",en:"Let me summarize today's discussion.",note:""},
+{id:135,cat:"会議終了",scene:"要約",jp:"アクションアイテムをまとめます。",en:"Let me summarize the action items.",note:"超重要"},
+{id:136,cat:"会議終了",scene:"決定事項",jp:"今日決まったことは3点あります。",en:"We made three decisions today.",note:""},
+{id:137,cat:"会議終了",scene:"次アクション",jp:"次のアクションは、原文作成者に用語を確認することです。",en:"The next action is to check the terminology with the original author.",note:""},
+{id:138,cat:"会議終了",scene:"担当確認",jp:"このタスクは私が担当します。",en:"I'll take care of this task.",note:""},
+{id:139,cat:"会議終了",scene:"担当確認",jp:"私のアクションアイテムはスケジュールを確認することです。",en:"My action item is to check the schedule.",note:""},
+{id:140,cat:"会議終了",scene:"担当確認",jp:"このタスクはレビュー担当者に依頼します。",en:"I'll ask the reviewer to take care of this.",note:""},
+{id:141,cat:"会議終了",scene:"担当確認",jp:"原文ファイルの確認をアクションアイテムとしてお願いできますか。",en:"Could you confirm the source file as your action item?",note:""},
+{id:142,cat:"会議終了",scene:"メールフォロー",jp:"会議後にフォローアップメールを送ります。",en:"I'll send a follow-up email after this meeting.",note:"頻出"},
+{id:143,cat:"会議終了",scene:"メールフォロー",jp:"メールでフォローアップします。",en:"I'll follow up by email.",note:""},
+{id:144,cat:"会議終了",scene:"期限確認",jp:"明日までに締切をご確認いただけますか。",en:"Could you confirm the deadline by tomorrow?",note:""},
+{id:145,cat:"会議終了",scene:"未解決事項",jp:"未解決の項目はメールで確認します。",en:"I'll follow up on the open items by email.",note:""},
+{id:146,cat:"会議終了",scene:"終了確認",jp:"他に確認すべき点はありますか。",en:"Is there anything else we should confirm?",note:""},
+{id:147,cat:"会議終了",scene:"終了確認",jp:"他に話すべきことはありますか。",en:"Is there anything else we should discuss?",note:""},
+{id:148,cat:"会議終了",scene:"終了挨拶",jp:"皆さんありがとうございました。私からは以上です。",en:"Thanks, everyone. That's all from my side.",note:"自然"},
+];
+
+const CATS=["すべて",...new Set(PH.map(p=>p.cat))];
+let apiKey='';
+let mastery={};
+let filterCat="すべて";
+let settings={count:10,order:"smart",wait:6};
+let qs={queue:[],idx:0,ok:0,total:0,done:false};
+
+// Recording
+let mediaRecorder=null;
+let audioChunks=[];
+let audioContext=null;
+let analyser=null;
+let micStream=null;
+let isRecording=false;
+let speechDetected=false;
+let noSpeechTimer=null;
+let vizRaf=null;
+let silenceCounter=0;
+const SILENCE_THRESHOLD=10;    // volume level below this = silence
+const SILENCE_STOP_MS=1500;    // ms of silence after speech → stop
+const SILENCE_TICK=100;        // check every 100ms
+
+function loadData(){
+  try{
+    const k=localStorage.getItem('mtg_apikey2');
+    if(k){apiKey=k;updateApiDot();}
+    const m=localStorage.getItem('mtg_mastery4');
+    if(m)mastery=JSON.parse(m);
+  }catch(e){}
+}
+function saveKey(k){try{localStorage.setItem('mtg_apikey2',k);}catch(e){}}
+function saveM(){try{localStorage.setItem('mtg_mastery4',JSON.stringify(mastery));}catch(e){}}
+function gm(id){return mastery[id]||0;}
+function sm(id,v){mastery[id]=Math.max(0,Math.min(5,v));saveM();}
+function updateApiDot(){
+  const d=document.getElementById('api-dot');
+  if(d)d.className='api-dot'+(apiKey?' ok':'');
+}
+
+function sw(t){
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['quiz','list','stats'][i]===t));
+  document.querySelectorAll('.screen').forEach(el=>el.classList.toggle('active',el.id===t));
+  if(t==='list')renderList();
+  if(t==='stats')renderStats();
+}
+
+function dots(m){
+  return Array.from({length:5},(_,i)=>`<div class="dot${i<m?' on':''}"></div>`).join('');
+}
+
+/* ===== SETUP ===== */
+function renderSetup(){
+  stopAll();
+  document.getElementById('quiz-body').innerHTML=`
+  <div class="setup-wrap">
+    <div class="setup-title">🔑 APIキー設定</div>
+    <div class="setup-desc">初回のみ入力してください。次回からは自動的に読み込まれます。</div>
+    <div>
+      <div class="setup-lbl">Anthropic APIキー（sk-ant-...）</div>
+      <input class="setup-input" id="key-input" type="password" placeholder="sk-ant-api03-..." autocomplete="off">
+    </div>
+    <button class="setup-btn" onclick="saveApiKey()">保存して開始</button>
+    <div class="setup-note">⚠️ キーはこのデバイスにのみ保存されます。<br>取得先: console.anthropic.com → API Keys</div>
+  </div>`;
+}
+
+function saveApiKey(){
+  const k=(document.getElementById('key-input').value||'').trim();
+  if(!k.startsWith('sk-ant-')){alert('APIキーは sk-ant- で始まる必要があります');return;}
+  apiKey=k;
+  saveKey(k);
+  updateApiDot();
+  renderQuizSettings();
+}
+
+/* ===== QUIZ SETTINGS ===== */
+function renderQuizSettings(){
+  stopAll();
+  if(!apiKey){renderSetup();return;}
+  const catOpts=CATS.map(c=>`<button class="cat-opt${filterCat===c?' active':''}" onclick="filterCat='${c}';renderQuizSettings()">${c}</button>`).join('');
+  document.getElementById('quiz-body').innerHTML=`
+  <div class="quiz-settings">
+    <div class="setting-group">
+      <div class="setting-lbl">出題数</div>
+      <div class="seg">${[5,10,20,30].map(n=>`<button class="seg-btn${settings.count===n?' active':''}" onclick="settings.count=${n};renderQuizSettings()">${n}問</button>`).join('')}</div>
+    </div>
+    <div class="setting-group">
+      <div class="setting-lbl">無回答タイムアウト（秒）— 話し始めたら即カウント停止</div>
+      <div class="seg">${[3,6,10].map(n=>`<button class="seg-btn${settings.wait===n?' active':''}" onclick="settings.wait=${n};renderQuizSettings()">${n}秒</button>`).join('')}</div>
+    </div>
+    <div class="setting-group">
+      <div class="setting-lbl">出題順</div>
+      <div class="seg">
+        <button class="seg-btn${settings.order==='smart'?' active':''}" onclick="settings.order='smart';renderQuizSettings()">苦手優先</button>
+        <button class="seg-btn${settings.order==='random'?' active':''}" onclick="settings.order='random';renderQuizSettings()">ランダム</button>
+      </div>
+    </div>
+    <div class="setting-group">
+      <div class="setting-lbl">カテゴリ</div>
+      <div class="cat-grid">${catOpts}</div>
+    </div>
+    <button class="start-btn" onclick="startQuiz()">▶ 練習を開始する</button>
+  </div>`;
+}
+
+function buildQueue(){
+  let pool=[...PH];
+  if(filterCat!=='すべて')pool=pool.filter(p=>p.cat===filterCat);
+  if(settings.order==='smart'){
+    pool.sort((a,b)=>{const d=gm(a.id)-gm(b.id);return d!==0?d:Math.random()-0.5;});
+  }else{
+    pool.sort(()=>Math.random()-0.5);
+  }
+  return pool.slice(0,Math.min(settings.count,pool.length));
+}
+
+function startQuiz(){
+  qs={queue:buildQueue(),idx:0,ok:0,total:0,done:false};
+  renderQuestion();
+}
+
+/* ===== QUESTION ===== */
+function renderQuestion(){
+  if(qs.done){renderSummary();return;}
+  const q=qs.queue[qs.idx];
+  const pct=Math.round(qs.idx/qs.queue.length*100);
+  document.getElementById('quiz-body').innerHTML=`
+  <div class="quiz-wrap">
+    <div class="progress-row">
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <span class="prog-txt">${qs.idx+1}/${qs.queue.length}</span>
+    </div>
+    <div class="scene-row">
+      <span class="cat-badge">${q.cat}</span>
+      <span class="scene-txt">${q.scene}</span>
+      <span class="no-txt">No.${q.id}</span>
+    </div>
+    <div class="q-card">
+      <div class="jp-main">${q.jp}</div>
+    </div>
+    <div class="rec-area" id="rec-area">
+      <div class="rec-status" id="rec-status">マイクを準備中...</div>
+      <div class="rec-viz" id="rec-viz">${Array.from({length:14},()=>'<div class="rec-bar"></div>').join('')}</div>
+      <div class="cdown-wrap" id="cdown-wrap">&nbsp;</div>
+      <div class="silence-bar-wrap"><div class="silence-bar" id="silence-bar"></div></div>
+    </div>
+    <div id="ans-area"></div>
+    <div id="result-area"></div>
+  </div>`;
+  startAutoRecording(q);
+}
+
+/* ===== RECORDING ===== */
+async function startAutoRecording(q){
+  try{
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+    audioContext=new(window.AudioContext||window.webkitAudioContext)();
+    analyser=audioContext.createAnalyser();
+    analyser.fftSize=256;
+    const src=audioContext.createMediaStreamSource(micStream);
+    src.connect(analyser);
+
+    audioChunks=[];
+    const mimeType=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
+    mediaRecorder=new MediaRecorder(micStream,{mimeType});
+    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
+    mediaRecorder.onstop=()=>processAudio(q);
+    mediaRecorder.start(100);
+    isRecording=true;
+    speechDetected=false;
+    silenceCounter=0;
+
+    setStatus('待機中 — 話してください 🎤',false);
+    startCountdown();
+    startViz();
+  }catch(e){
+    setStatus('マイクにアクセスできません',false);
+    setTimeout(()=>showAnswerOnly(q),1500);
+  }
+}
+
+/* カウントダウン：無音時のみカウント、話したら即停止 */
+function startCountdown(){
+  let t=settings.wait;
+  setCdown(t,false);
+  noSpeechTimer=setInterval(()=>{
+    if(speechDetected){clearInterval(noSpeechTimer);setCdown('',false);return;}
+    t--;
+    const urgent=t<=2;
+    setCdown(t,urgent);
+    if(t<=0){
+      clearInterval(noSpeechTimer);
+      // タイムアウト → 回答なしでスキップ
+      stopAll();
+      showAnswerOnly(qs.queue[qs.idx]);
+    }
+  },1000);
+}
+
+function setCdown(val,urgent){
+  const el=document.getElementById('cdown-wrap');
+  if(el){el.textContent=val===''?'':val;el.className='cdown-wrap'+(urgent?' urgent':'');}
+}
+
+function setStatus(txt,rec){
+  const el=document.getElementById('rec-status');
+  if(el){el.textContent=txt;el.style.color=rec?'var(--red)':'var(--text2)';}
+}
+
+/* 音量ビジュアライザ＋音声検知＋無音停止 */
+function startViz(){
+  const buf=new Uint8Array(analyser.frequencyBinCount);
+  let silenceTicks=0;
+  const maxSilenceTicks=Math.round(SILENCE_STOP_MS/SILENCE_TICK);
+
+  function tick(){
+    if(!isRecording){cancelAnimationFrame(vizRaf);return;}
+    analyser.getByteFrequencyData(buf);
+    const avg=buf.reduce((s,v)=>s+v,0)/buf.length;
+
+    // ビジュアライザ更新
+    const bars=document.querySelectorAll('.rec-bar');
+    bars.forEach((bar,i)=>{
+      const h=Math.max(4,Math.min(30,buf[i*2]/5));
+      bar.style.height=h+'px';
+      bar.classList.toggle('active',avg>SILENCE_THRESHOLD);
+    });
+
+    if(!speechDetected){
+      if(avg>SILENCE_THRESHOLD){
+        // 話し始め検知
+        speechDetected=true;
+        clearInterval(noSpeechTimer);
+        setCdown('',false);
+        setStatus('録音中... 🔴',true);
+        silenceTicks=0;
+      }
+    } else {
+      // 話した後の無音チェック
+      if(avg<SILENCE_THRESHOLD){
+        silenceTicks++;
+        const pct=Math.min(100,silenceTicks/maxSilenceTicks*100);
+        const sb=document.getElementById('silence-bar');
+        if(sb)sb.style.width=pct+'%';
+        if(silenceTicks>=maxSilenceTicks){
+          // 無音1.5秒 → 録音停止して分析
+          stopAll();
+          return;
+        }
+      } else {
+        silenceTicks=0;
+        const sb=document.getElementById('silence-bar');
+        if(sb)sb.style.width='0%';
+      }
+    }
+    vizRaf=requestAnimationFrame(tick);
+  }
+  vizRaf=requestAnimationFrame(tick);
+}
+
+function stopAll(){
+  isRecording=false;
+  clearInterval(noSpeechTimer);
+  cancelAnimationFrame(vizRaf);
+  if(mediaRecorder&&mediaRecorder.state!=='inactive')mediaRecorder.stop();
+  if(micStream)micStream.getTracks().forEach(t=>t.stop());
+  if(audioContext&&audioContext.state!=='closed')audioContext.close();
+}
+
+/* ===== AUDIO PROCESSING ===== */
+async function processAudio(q){
+  if(!speechDetected){return;} // スキップ済み
+  setStatus('AIが分析中...',false);
+  const recArea=document.getElementById('rec-area');
+  if(recArea)recArea.innerHTML='<div class="analyzing"><div class="spinner"></div>AIが発音を分析中...</div>';
+
+  // Web Speech APIでテキスト化してからClaude分析
+  const blob=new Blob(audioChunks,{type:'audio/webm'});
+  transcribeAndAnalyze(blob,q);
+}
+
+function transcribeAndAnalyze(blob,q){
+  // Web Speech APIでリアルタイム文字起こし（録音済みblob用にはSTT再実行）
+  if(!window.SpeechRecognition&&!window.webkitSpeechRecognition){
+    // STT不可 → Claudeにaudioを直接送る
+    sendAudioToClaude(blob,q);
+    return;
+  }
+  // 音声を再生しながらSTT（iOSでは直接blob→STTが困難なのでURL経由）
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const r=new SR();
+  r.lang='en-US';r.interimResults=false;r.maxAlternatives=1;
+  r.onresult=e=>{
+    const transcript=e.results[0][0].transcript;
+    analyzeText(transcript,q);
+  };
+  r.onerror=()=>sendAudioToClaude(blob,q);
+  r.start();
+}
+
+async function sendAudioToClaude(blob,q){
+  const reader=new FileReader();
+  reader.onloadend=async()=>{
+    const b64=reader.result.split(',')[1];
+    const prompt=buildPrompt(q,null);
+    try{
+      const result=await callClaude([{
+        role:'user',
+        content:[
+          {type:'text',text:prompt},
+          {type:'document',source:{type:'base64',media_type:'audio/webm',data:b64}}
+        ]
+      }]);
+      showScore(result,q);
+    }catch(e){showAnswerOnly(q);}
+  };
+  reader.readAsDataURL(blob);
+}
+
+async function analyzeText(transcript,q){
+  const prompt=buildPrompt(q,transcript);
+  try{
+    const result=await callClaude([{role:'user',content:prompt}]);
+    showScore(result,q);
+  }catch(e){showAnswerOnly(q);}
+}
+
+function buildPrompt(q,transcript){
+  const base=`あなたは英語発音・表現コーチです。日本語ネイティブの学習者が英語会議フレーズを練習しています。
+
+日本語: 「${q.jp}」
+正解英文: 「${q.en}」
+${transcript?`ユーザーが言った英語: 「${transcript}」`:'（音声ファイルを確認してください）'}
+
+以下のJSON形式のみで返してください（前後に余計なテキスト不要）:
+{
+  "transcribed": "ユーザーが実際に言った英語（聞き取れた通り）",
+  "score": 4,
+  "good": "良かった点を日本語で1文",
+  "fixes": ["改善点1（具体的に日本語で）", "改善点2（あれば）", "改善点3（あれば）"],
+  "tip": "最重要の発音・表現ポイントを日本語で1文（短く）"
+}
+
+採点基準（1〜5の整数）:
+5 = ネイティブに近い自然な発音・表現
+4 = 十分通じる、少し改善の余地あり
+3 = だいたい通じるが発音・表現に課題
+2 = 伝わりにくい、主要な改善が必要
+1 = かなり難しい、大幅な練習が必要
+
+音声が不明瞭・無音の場合: score=2、transcribed="（聞き取れませんでした）"`;
+  return base;
+}
+
+async function callClaude(messages){
+  const res=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':apiKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,messages})
+  });
+  if(!res.ok)throw new Error('API '+res.status);
+  const data=await res.json();
+  const text=data.content.map(c=>c.text||'').join('');
+  const clean=text.replace(/```json|```/g,'').trim();
+  return JSON.parse(clean);
+}
+
+/* ===== DISPLAY ===== */
+function showScore(result,q){
+  const score=Math.max(1,Math.min(5,result.score||3));
+  const stars=Array.from({length:5},(_,i)=>i<score?'⭐':'☆').join('');
+  const fixes=(result.fixes||[]).filter(Boolean).map(f=>`<div class="score-item">${f}</div>`).join('');
+
+  const ansEl=document.getElementById('ans-area');
+  if(ansEl)ansEl.innerHTML=`
+    <div class="ans-card">
+      <div class="en-main">${q.en}</div>
+      ${q.note?`<div class="note-box">💡 ${q.note}</div>`:''}
+    </div>
+    <div class="score-card">
+      <div class="score-header">
+        <div class="score-title">発音スコア</div>
+        <div class="score-right">
+          <div class="score-stars">${stars}</div>
+          <div class="score-num">${score}/5</div>
+        </div>
+      </div>
+      ${result.transcribed?`<div class="user-said">認識: "${result.transcribed}"</div>`:''}
+      <div class="score-divider"></div>
+      ${result.good?`<div class="score-section"><div class="score-sec-title">✅ 良かった点</div><div class="score-text">${result.good}</div></div>`:''}
+      ${fixes?`<div class="score-section"><div class="score-sec-title">📝 改善点</div>${fixes}</div>`:''}
+      ${result.tip?`<div class="score-section"><div class="score-sec-title">🔑 発音のポイント</div><div class="score-text">${result.tip}</div></div>`:''}
+    </div>`;
+
+  showResultBtns(q);
+}
+
+function showAnswerOnly(q){
+  const recEl=document.getElementById('rec-area');
+  if(recEl)recEl.style.display='none';
+  const ansEl=document.getElementById('ans-area');
+  if(ansEl)ansEl.innerHTML=`
+    <div class="ans-card">
+      <div class="en-main">${q.en}</div>
+      ${q.note?`<div class="note-box">💡 ${q.note}</div>`:''}
+    </div>`;
+  showResultBtns(q);
+}
+
+function showResultBtns(q){
+  const m=gm(q.id);
+  const ra=document.getElementById('result-area');
+  if(ra)ra.innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:10px;padding-bottom:20px">
+      <div class="mastery-row">習熟度:<div class="dots">${dots(m)}</div></div>
+      <div class="result-btns">
+        <button class="btn-ng" onclick="mark(false)">✗ もう少し</button>
+        <button class="btn-ok" onclick="mark(true)">✓ 言えた！</button>
+      </div>
+    </div>`;
+}
+
+function mark(ok){
+  const q=qs.queue[qs.idx];
+  if(ok){sm(q.id,gm(q.id)+1);qs.ok++;}
+  else{sm(q.id,Math.max(0,gm(q.id)-1));}
+  qs.total++;qs.idx++;
+  if(qs.idx>=qs.queue.length)qs.done=true;
+  renderQuestion();
+}
+
+function renderSummary(){
+  stopAll();
+  const pct=Math.round(qs.ok/qs.total*100);
+  document.getElementById('quiz-body').innerHTML=`
+  <div class="summary">
+    <div><div class="big-num">${pct}%</div><div class="big-sub">${qs.ok}/${qs.total} 正解</div></div>
+    <div class="sum-btns">
+      <button class="restart-btn" onclick="startQuiz()">▶ もう一度</button>
+      <button class="restart-btn" onclick="renderQuizSettings()">⚙ 設定に戻る</button>
+    </div>
+  </div>`;
+}
+
+/* ===== LIST ===== */
+function renderList(){
+  document.getElementById('filter-row').innerHTML=CATS.map(c=>
+    `<button class="chip${filterCat===c?' active':''}" onclick="filterCat='${c}';renderList()">${c}</button>`
+  ).join('');
+  const q=(document.getElementById('search')||{}).value||'';
+  const items=PH.filter(p=>{
+    const catOk=filterCat==='すべて'||p.cat===filterCat;
+    const qOk=!q||p.jp.includes(q)||p.en.toLowerCase().includes(q.toLowerCase())||p.scene.includes(q);
+    return catOk&&qOk;
+  });
+  document.getElementById('list-count').textContent=`${items.length} 件`;
+  document.getElementById('phrase-list').innerHTML=items.map(p=>{
+    const m=gm(p.id);
+    const ds=Array.from({length:5},(_,i)=>`<div class="p-dot${i<m?' on':''}"></div>`).join('');
+    return `<div class="p-item">
+      <div class="p-jp">${p.jp}</div>
+      <div class="p-en">${p.en}</div>
+      <div class="p-meta"><span class="p-scene">${p.cat}・${p.scene}</span><div class="p-dots">${ds}</div></div>
+    </div>`;
+  }).join('');
+}
+
+/* ===== STATS ===== */
+function renderStats(){
+  const total=PH.length;
+  const mastered=PH.filter(p=>gm(p.id)>=4).length;
+  const practiced=PH.filter(p=>gm(p.id)>0).length;
+  const avgPct=Math.round(PH.reduce((s,p)=>s+gm(p.id),0)/total/5*100);
+  const cats=[...new Set(PH.map(p=>p.cat))];
+  const catRows=cats.map(cat=>{
+    const ps=PH.filter(p=>p.cat===cat);
+    const pct=Math.round(ps.reduce((s,p)=>s+gm(p.id),0)/ps.length/5*100);
+    return `<div class="cat-row">
+      <span class="cat-name">${cat}</span>
+      <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div>
+      <span class="cat-pct">${pct}%</span>
+    </div>`;
+  }).join('');
+  document.getElementById('stats-body').innerHTML=`
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-val">${mastered}</div><div class="stat-lbl">習得済み（★4+）</div></div>
+      <div class="stat-card"><div class="stat-val">${practiced}</div><div class="stat-lbl">練習済み</div></div>
+      <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-lbl">全フレーズ</div></div>
+      <div class="stat-card"><div class="stat-val">${avgPct}%</div><div class="stat-lbl">平均習熟度</div></div>
+    </div>
+    <div class="section-head">カテゴリ別習熟度</div>
+    <div class="cat-block">${catRows}</div>
+    <button class="sub-btn" onclick="if(confirm('習熟度をリセットしますか？')){localStorage.removeItem('mtg_mastery4');mastery={};renderStats();}">習熟度をリセット</button>
+    <button class="sub-btn" onclick="if(confirm('APIキーを変更しますか？')){apiKey='';localStorage.removeItem('mtg_apikey2');updateApiDot();sw('quiz');renderSetup();}">🔑 APIキーを変更</button>`;
+}
+
+/* ===== INIT ===== */
+loadData();
+document.getElementById('hdr-ct').textContent=PH.length+' フレーズ';
+if(apiKey){renderQuizSettings();}else{renderSetup();}
+</script>
+</body>
+</html>
