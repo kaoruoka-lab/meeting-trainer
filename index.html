@@ -596,13 +596,11 @@ function stopAll(){
 /* ===== STT + RECORDING（PC Chrome専用・continuous mode）===== */
 let srInstance=null;
 let srTranscript='';
-let sttCallback=null; // STT停止後に呼ぶコールバック
 
 function startSTT(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR)return;
   srTranscript='';
-  sttCallback=null;
   srInstance=new SR();
   srInstance.lang='en-US';
   srInstance.continuous=true;
@@ -619,15 +617,8 @@ function startSTT(){
     if(e.error==='no-speech')return;
   };
   srInstance.onend=()=>{
-    if(sttCallback){
-      // 停止要求があったのでコールバック実行
-      const cb=sttCallback;
-      sttCallback=null;
-      cb(srTranscript.trim());
-    } else if(isRecording){
-      // 録音中に勝手に止まったら再起動
-      try{srInstance.start();}catch(e){}
-    }
+    // 録音中に勝手に止まったら再起動
+    if(isRecording){try{srInstance.start();}catch(e){}}
   };
   try{srInstance.start();}catch(e){}
 }
@@ -645,31 +636,22 @@ function runSTT(q){
   const recArea=document.getElementById('rec-area');
   if(recArea)recArea.innerHTML='<div class="analyzing"><div class="spinner"></div>AIが分析中...</div>';
 
-  // STTにコールバックをセットしてから停止
-  // onendが発火した時点でtranscriptが確定している
-  let done=false;
-  const handleTranscript=(transcript)=>{
-    if(done)return;
-    done=true;
+  // STTを止めずにその時点のtranscriptを使う
+  // 最後の認識結果が確定するまで少し待つ
+  let attempts=0;
+  const checkTranscript=()=>{
+    const transcript=srTranscript.trim();
     if(transcript){
       analyzeText(transcript,q);
+    } else if(attempts<10){
+      // 最大1秒待つ
+      attempts++;
+      setTimeout(checkTranscript,100);
     } else {
       showAnswerOnly(q);
     }
   };
-
-  if(srInstance){
-    sttCallback=handleTranscript;
-    try{srInstance.stop();}catch(e){
-      // stop失敗時はフォールバック
-      setTimeout(()=>handleTranscript(srTranscript.trim()),600);
-    }
-  } else {
-    handleTranscript(srTranscript.trim());
-  }
-
-  // タイムアウト保険（3秒）
-  setTimeout(()=>handleTranscript(srTranscript.trim()),3000);
+  setTimeout(checkTranscript,300);
 }
 
 async function analyzeText(transcript,q){
