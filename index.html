@@ -596,15 +596,17 @@ function stopAll(){
 /* ===== STT + RECORDING（PC Chrome専用・continuous mode）===== */
 let srInstance=null;
 let srTranscript='';
+let sttCallback=null; // STT停止後に呼ぶコールバック
 
 function startSTT(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR)return;
   srTranscript='';
+  sttCallback=null;
   srInstance=new SR();
   srInstance.lang='en-US';
-  srInstance.continuous=true;      // 話している間ずっと認識
-  srInstance.interimResults=false; // 確定テキストのみ取得
+  srInstance.continuous=true;
+  srInstance.interimResults=false;
   srInstance.maxAlternatives=1;
   srInstance.onresult=e=>{
     for(let i=e.resultIndex;i<e.results.length;i++){
@@ -614,19 +616,25 @@ function startSTT(){
     }
   };
   srInstance.onerror=e=>{
-    // no-speech エラーは無視（話し始め前に起きる）
     if(e.error==='no-speech')return;
   };
   srInstance.onend=()=>{
-    // 録音中にSTTが止まったら再起動
-    if(isRecording){try{srInstance.start();}catch(e){}}
+    if(sttCallback){
+      // 停止要求があったのでコールバック実行
+      const cb=sttCallback;
+      sttCallback=null;
+      cb(srTranscript.trim());
+    } else if(isRecording){
+      // 録音中に勝手に止まったら再起動
+      try{srInstance.start();}catch(e){}
+    }
   };
   try{srInstance.start();}catch(e){}
 }
 
 function stopSTT(){
   if(srInstance){
-    srInstance.onend=()=>{}; // 再起動ループを止める
+    srInstance.onend=()=>{};
     try{srInstance.stop();}catch(e){}
     srInstance=null;
   }
@@ -634,20 +642,34 @@ function stopSTT(){
 
 function runSTT(q){
   if(!speechDetected){return;}
-  // STTを止めて結果を確定
-  stopSTT();
   const recArea=document.getElementById('rec-area');
   if(recArea)recArea.innerHTML='<div class="analyzing"><div class="spinner"></div>AIが分析中...</div>';
 
-  // 少し待って最後の認識結果を確定させてからClaude分析
-  setTimeout(()=>{
-    const transcript=srTranscript.trim();
+  // STTにコールバックをセットしてから停止
+  // onendが発火した時点でtranscriptが確定している
+  let done=false;
+  const handleTranscript=(transcript)=>{
+    if(done)return;
+    done=true;
     if(transcript){
       analyzeText(transcript,q);
     } else {
       showAnswerOnly(q);
     }
-  },600);
+  };
+
+  if(srInstance){
+    sttCallback=handleTranscript;
+    try{srInstance.stop();}catch(e){
+      // stop失敗時はフォールバック
+      setTimeout(()=>handleTranscript(srTranscript.trim()),600);
+    }
+  } else {
+    handleTranscript(srTranscript.trim());
+  }
+
+  // タイムアウト保険（3秒）
+  setTimeout(()=>handleTranscript(srTranscript.trim()),3000);
 }
 
 async function analyzeText(transcript,q){
@@ -778,19 +800,20 @@ function showResultBtns(q){
 
 function retryQuestion(){
   const q=qs.queue[qs.idx];
-  // 録音だけ止める。STTは止めない（再起動による頭切れを防ぐ）
+  // 録音だけ止める。STTは止めない
   isRecording=false;
   clearInterval(noSpeechTimer);
   cancelAnimationFrame(vizRaf);
   if(mediaRecorder&&mediaRecorder.state!=='inactive'){
-    mediaRecorder.onstop=()=>{}; // 前のonstopを無効化
+    mediaRecorder.onstop=()=>{};
     mediaRecorder.stop();
   }
   if(micStream)micStream.getTracks().forEach(t=>t.stop());
   if(audioContext&&audioContext.state!=='closed')audioContext.close();
 
-  // STTのトランスクリプトだけリセット
+  // トランスクリプトとコールバックだけリセット
   srTranscript='';
+  sttCallback=null;
 
   const ansArea=document.getElementById('ans-area');
   const resultArea=document.getElementById('result-area');
