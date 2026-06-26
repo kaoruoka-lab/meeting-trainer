@@ -510,6 +510,8 @@ async function startAutoRecording(q){
     mediaRecorder.start(100);
     isRecording=true;
     speechDetected=false;
+    // 録音と同時にSTTも起動（話し始めを取りこぼさないため）
+    startSTT();
     setStatus('待機中 — 話してください 🎤',false);
     startCountdown();
     startViz();
@@ -591,37 +593,61 @@ function stopAll(){
   if(audioContext&&audioContext.state!=='closed')audioContext.close();
 }
 
-/* ===== STT → Claude分析（シンプル一本道）===== */
+/* ===== STT + RECORDING（PC Chrome専用・continuous mode）===== */
+let srInstance=null;
+let srTranscript='';
+
+function startSTT(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR)return;
+  srTranscript='';
+  srInstance=new SR();
+  srInstance.lang='en-US';
+  srInstance.continuous=true;      // 話している間ずっと認識
+  srInstance.interimResults=false; // 確定テキストのみ取得
+  srInstance.maxAlternatives=1;
+  srInstance.onresult=e=>{
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal){
+        srTranscript+=(srTranscript?' ':'')+e.results[i][0].transcript.trim();
+      }
+    }
+  };
+  srInstance.onerror=e=>{
+    // no-speech エラーは無視（話し始め前に起きる）
+    if(e.error==='no-speech')return;
+  };
+  srInstance.onend=()=>{
+    // 録音中にSTTが止まったら再起動
+    if(isRecording){try{srInstance.start();}catch(e){}}
+  };
+  try{srInstance.start();}catch(e){}
+}
+
+function stopSTT(){
+  if(srInstance){
+    srInstance.onend=()=>{}; // 再起動ループを止める
+    try{srInstance.stop();}catch(e){}
+    srInstance=null;
+  }
+}
+
 function runSTT(q){
   if(!speechDetected){return;}
+  // STTを止めて結果を確定
+  stopSTT();
   const recArea=document.getElementById('rec-area');
   if(recArea)recArea.innerHTML='<div class="analyzing"><div class="spinner"></div>AIが分析中...</div>';
 
-  if(!window.SpeechRecognition&&!window.webkitSpeechRecognition){
-    showAnswerOnly(q);return;
-  }
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  const sr=new SR();
-  sr.lang='en-US';
-  sr.continuous=false;
-  sr.interimResults=false;
-  sr.maxAlternatives=1;
-
-  let done=false;
-  sr.onresult=e=>{
-    if(done)return;
-    done=true;
-    const transcript=e.results[0][0].transcript.trim();
-    if(transcript)analyzeText(transcript,q);
-    else showAnswerOnly(q);
-  };
-  sr.onerror=()=>{if(!done){done=true;showAnswerOnly(q);}};
-  sr.onend=()=>{if(!done){done=true;showAnswerOnly(q);}};
-
-  // タイムアウト保険（10秒）
-  setTimeout(()=>{if(!done){done=true;try{sr.stop();}catch(e){}showAnswerOnly(q);}},10000);
-
-  try{sr.start();}catch(e){showAnswerOnly(q);}
+  // 少し待って最後の認識結果を確定させてからClaude分析
+  setTimeout(()=>{
+    const transcript=srTranscript.trim();
+    if(transcript){
+      analyzeText(transcript,q);
+    } else {
+      showAnswerOnly(q);
+    }
+  },600);
 }
 
 async function analyzeText(transcript,q){
