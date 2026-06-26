@@ -777,30 +777,62 @@ function showResultBtns(q){
 }
 
 function retryQuestion(){
-  // 同じ問題で再挑戦
   const q=qs.queue[qs.idx];
-  const ansArea=document.getElementById('ans-area');
-  const resultArea=document.getElementById('result-area');
-  if(ansArea)ansArea.innerHTML='';
-  if(resultArea)resultArea.innerHTML='';
-  // rec-areaを復活させて再録音
-  const quizWrap=document.querySelector('.quiz-wrap');
-  if(quizWrap){
-    let recArea=document.getElementById('rec-area');
-    if(!recArea){
-      recArea=document.createElement('div');
-      recArea.id='rec-area';
-      recArea.className='rec-area';
-      quizWrap.insertBefore(recArea,ansArea||quizWrap.lastElementChild);
+  stopAll();
+  stopSTT();
+  srTranscript='';
+
+  setTimeout(()=>{
+    const ansArea=document.getElementById('ans-area');
+    const resultArea=document.getElementById('result-area');
+    if(ansArea)ansArea.innerHTML='';
+    if(resultArea)resultArea.innerHTML='';
+    const quizWrap=document.querySelector('.quiz-wrap');
+    if(quizWrap){
+      let recArea=document.getElementById('rec-area');
+      if(!recArea){
+        recArea=document.createElement('div');
+        recArea.id='rec-area';
+        recArea.className='rec-area';
+        quizWrap.insertBefore(recArea,document.getElementById('ans-area')||quizWrap.lastElementChild);
+      }
+      recArea.style.display='';
+      recArea.innerHTML=`
+        <div class="rec-status" id="rec-status">準備中...</div>
+        <div class="rec-viz" id="rec-viz">${Array.from({length:14},()=>'<div class="rec-bar"></div>').join('')}</div>
+        <div class="cdown-wrap" id="cdown-wrap">&nbsp;</div>
+        <div class="silence-bar-wrap"><div class="silence-bar" id="silence-bar"></div></div>`;
     }
-    recArea.style.display='';
-    recArea.innerHTML=`
-      <div class="rec-status" id="rec-status">マイクを準備中...</div>
-      <div class="rec-viz" id="rec-viz">${Array.from({length:14},()=>'<div class="rec-bar"></div>').join('')}</div>
-      <div class="cdown-wrap" id="cdown-wrap">&nbsp;</div>
-      <div class="silence-bar-wrap"><div class="silence-bar" id="silence-bar"></div></div>`;
+    // STTを先に起動し、安定してから録音開始
+    startSTT();
+    setTimeout(()=>startAutoRecordingNoSTT(q), 800);
+  }, 600);
+}
+
+// Againボタン用：STTは既に起動済みなので録音だけ開始
+async function startAutoRecordingNoSTT(q){
+  try{
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+    audioContext=new(window.AudioContext||window.webkitAudioContext)();
+    analyser=audioContext.createAnalyser();
+    analyser.fftSize=256;
+    const src=audioContext.createMediaStreamSource(micStream);
+    src.connect(analyser);
+    audioChunks=[];
+    const mimeType=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
+    mediaRecorder=new MediaRecorder(micStream,{mimeType});
+    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
+    mediaRecorder.onstop=()=>runSTT(q);
+    mediaRecorder.start(100);
+    isRecording=true;
+    speechDetected=false;
+    setStatus('待機中 — 話してください 🎤',false);
+    startCountdown();
+    startViz();
+  }catch(e){
+    setStatus('マイクにアクセスできません',false);
+    setTimeout(()=>showAnswerOnly(q),1500);
   }
-  startAutoRecording(q);
 }
 
 function mark(ok){
