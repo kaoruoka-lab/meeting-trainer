@@ -399,7 +399,28 @@ function dots(m){
   return Array.from({length:5},(_,i)=>`<div class="dot${i<m?' on':''}"></div>`).join('');
 }
 
-/* ===== SETUP ===== */
+function speak(txt, rate=0.88){
+  if(!window.speechSynthesis)return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(txt);
+  u.lang='en-US';
+  u.rate=rate;
+
+  // 高品質音声を優先（Microsoft Aria/Jenny/Zira、Google US English）
+  const voices=speechSynthesis.getVoices();
+  const preferred=['Microsoft Aria','Microsoft Jenny','Microsoft Zira','Google US English'];
+  const best=preferred.map(n=>voices.find(v=>v.name===n)).find(Boolean)
+    || voices.find(v=>v.lang==='en-US'&&v.localService)
+    || voices.find(v=>v.lang==='en-US');
+  if(best)u.voice=best;
+
+  speechSynthesis.speak(u);
+}
+
+// 音声リスト読み込み（非同期）
+if(window.speechSynthesis){
+  speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices();
+}
 function renderSetup(){
   stopAll();
   document.getElementById('quiz-body').innerHTML=`
@@ -785,6 +806,10 @@ function showScore(result,q){
     <div class="ans-card">
       <div class="en-main">${q.en}</div>
       ${q.note?`<div class="note-box">💡 参考例 — ${q.note}</div>`:'<div class="note-box">💡 上記は参考例です。意味が合っていれば別の表現でもOK</div>'}
+      <div class="speak-row">
+        <button class="speak-btn" onclick="speak('${q.en.replace(/'/g,"\\'")}')">▶ 読み上げ</button>
+        <button class="speak-btn" onclick="speak('${q.en.replace(/'/g,"\\'")}', 0.65)">🐢 ゆっくり</button>
+      </div>
     </div>
     <div class="score-card">
       <div class="score-header">
@@ -813,6 +838,10 @@ function showAnswerOnly(q){
     <div class="ans-card">
       <div class="en-main">${q.en}</div>
       ${q.note?`<div class="note-box">💡 ${q.note}</div>`:''}
+      <div class="speak-row">
+        <button class="speak-btn" onclick="speak('${q.en.replace(/'/g,"\\'")}')">▶ 読み上げ</button>
+        <button class="speak-btn" onclick="speak('${q.en.replace(/'/g,"\\'")}', 0.65)">🐢 ゆっくり</button>
+      </div>
     </div>`;
   showResultBtns(q);
 }
@@ -871,9 +900,9 @@ function retryQuestion(){
     <div id="result-area"></div>
   </div>`;
 
-  // STTを先に起動してカウントダウン
+  // STTを先に起動してカウントダウン（2秒）
   startSTT();
-  let c=3;
+  let c=2;
   const cd=setInterval(()=>{
     c--;
     const el=document.getElementById('cdown-wrap');
