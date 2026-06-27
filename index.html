@@ -1089,6 +1089,15 @@ function loadCSV(event){
 loadData();
 document.getElementById('hdr-ct').textContent=PH.length+' フレーズ';
 if(apiKey){renderQuizSettings();}else{renderSetup();}
+
+// TTS音声エンジンをウォームアップ（初回の途切れ防止）
+setTimeout(()=>{
+  if(!window.speechSynthesis)return;
+  const u=new SpeechSynthesisUtterance(' ');
+  u.volume=0;
+  u.lang='en-US';
+  speechSynthesis.speak(u);
+},1000);
 </script>
 </body>
 </html>
