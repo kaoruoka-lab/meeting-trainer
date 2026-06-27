@@ -363,6 +363,8 @@ const SILENCE_THRESHOLD=10;
 const SILENCE_STOP_MS=3000;
 const SILENCE_TICK=100;
 let scores={}; // フレーズごとの最新★スコア
+let lastAdvice=null; // 前回のアドバイス（Again用）
+let isRetry=false; // Againボタンで再挑戦中か
 
 function loadData(){
   try{
@@ -564,8 +566,7 @@ function setStatus(txt,rec){
 
 function startViz(){
   const buf=new Uint8Array(analyser.frequencyBinCount);
-  let silenceTicks=0;
-  const maxSilenceTicks=Math.round(SILENCE_STOP_MS/SILENCE_TICK);
+  let silenceStart=null;
   function tick(){
     if(!isRecording){cancelAnimationFrame(vizRaf);return;}
     analyser.getByteFrequencyData(buf);
@@ -581,16 +582,18 @@ function startViz(){
         clearInterval(noSpeechTimer);
         setCdown('',false);
         setStatus('録音中... 🔴',true);
-        silenceTicks=0;
+        silenceStart=null;
       }
     } else {
       if(avg<SILENCE_THRESHOLD){
-        silenceTicks++;
+        if(!silenceStart)silenceStart=Date.now();
+        const elapsed=Date.now()-silenceStart;
+        const pct=Math.min(100,elapsed/SILENCE_STOP_MS*100);
         const sb=document.getElementById('silence-bar');
-        if(sb)sb.style.width=Math.min(100,silenceTicks/maxSilenceTicks*100)+'%';
-        if(silenceTicks>=maxSilenceTicks){stopAll();return;}
+        if(sb)sb.style.width=pct+'%';
+        if(elapsed>=SILENCE_STOP_MS){stopAll();return;}
       } else {
-        silenceTicks=0;
+        silenceStart=null;
         const sb=document.getElementById('silence-bar');
         if(sb)sb.style.width='0%';
       }
@@ -692,19 +695,30 @@ async function analyzeText(transcript,q){
 }
 
 function buildPrompt(q,transcript){
+  const retrySection=isRetry&&lastAdvice?`
+【前回の指摘事項】
+${lastAdvice.fixes.map((f,i)=>`${i+1}. ${f}`).join('\n')}
+最優先ポイント: ${lastAdvice.tip}
+
+【今回の評価で重要】
+上記の指摘を踏まえて再挑戦しています。前回の指摘が改善されているかどうかを具体的に評価してください。
+改善されていれば「前回の指摘通り〇〇が改善されました」と明記してください。
+まだ改善されていなければ「〇〇はまだ改善が必要です」と明記してください。
+`:'';
+
   return `あなたは厳格なビジネス英語コーチです。日本語ネイティブが海外顧客・海外上長との英語会議で通用するレベルを目指しています。
 
 【お題の日本語】: 「${q.jp}」
 【参考正解例】: 「${q.en}」
 【ユーザーが実際に言った英語】: 「${transcript}」
-
+${retrySection}
 【採点の基本方針】
 - 採点は「参考正解例との一致度」ではなく「日本語の意味を正しく英語で伝えられているか」で行う
 - 参考正解例と違う表現でも、意味が正確でビジネス英語として自然であれば高得点
 - 参考正解例と同じ内容を別の自然な言い方で言えた場合は「✅ 別の良い表現です」とfixesに入れず褒める
 
 【採点基準（1〜5の整数）】
-5点: 日本語の意味を完全に正確に伝えており、ビジネス英語として自然。発音・表現ともに申し分ない
+5点: 日本語の意味を完全に正確に伝えており、ビジネス英語として自然
 4点: 意味は正しく伝わるが、表現が少し不自然・簡略・または発音に軽微な問題あり
 3点: 意味はだいたい合っているが、ニュアンスがズレている、または重要な単語が抜けている
 2点: 意味が少し違う、または聞き手が理解に苦労するレベル
@@ -749,8 +763,12 @@ async function callClaude(messages){
 function showScore(result,q){
   const score=Math.max(1,Math.min(5,result.score||3));
 
-  // ★スコアを自動保存
+  // ★スコアと前回アドバイスを保存
   ss(q.id,score);
+  lastAdvice={
+    fixes:(result.fixes||[]).filter(Boolean),
+    tip:result.tip||''
+  };
 
   const stars=Array.from({length:5},(_,i)=>i<score?'⭐':'☆').join('');
   const fixes=(result.fixes||[]).filter(Boolean).map(f=>`<div class="score-item">${f}</div>`).join('');
@@ -812,6 +830,8 @@ function showResultBtns(q){
 }
 
 function nextQuestion(){
+  isRetry=false;
+  lastAdvice=null;
   qs.total++;
   qs.idx++;
   if(qs.idx>=qs.queue.length)qs.done=true;
@@ -819,6 +839,7 @@ function nextQuestion(){
 }
 
 function retryQuestion(){
+  isRetry=true;
   const q=qs.queue[qs.idx];
 
   // 全部止める
