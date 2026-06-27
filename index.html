@@ -399,25 +399,33 @@ function dots(m){
   return Array.from({length:5},(_,i)=>`<div class="dot${i<m?' on':''}"></div>`).join('');
 }
 
+let ttsReady=false;
+
 function speak(txt, rate=0.88){
   if(!window.speechSynthesis)return;
   speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(txt);
-  u.lang='en-US';
-  u.rate=rate;
 
-  // 高品質音声を優先（Microsoft Aria/Jenny/Zira、Google US English）
-  const voices=speechSynthesis.getVoices();
-  const preferred=['Microsoft Aria','Microsoft Jenny','Microsoft Zira','Google US English'];
-  const best=preferred.map(n=>voices.find(v=>v.name===n)).find(Boolean)
-    || voices.find(v=>v.lang==='en-US'&&v.localService)
-    || voices.find(v=>v.lang==='en-US');
-  if(best)u.voice=best;
+  const doSpeak=()=>{
+    const u=new SpeechSynthesisUtterance(txt);
+    u.lang='en-US';
+    u.rate=rate;
+    const voices=speechSynthesis.getVoices();
+    const preferred=['Microsoft Aria','Microsoft Jenny','Microsoft Zira','Google US English'];
+    const best=preferred.map(n=>voices.find(v=>v.name===n)).find(Boolean)
+      ||voices.find(v=>v.lang==='en-US'&&v.localService)
+      ||voices.find(v=>v.lang==='en-US');
+    if(best)u.voice=best;
+    speechSynthesis.speak(u);
+  };
 
-  speechSynthesis.speak(u);
+  if(ttsReady){
+    doSpeak();
+  } else {
+    // まだウォームアップ中なら少し待つ
+    setTimeout(doSpeak, 500);
+  }
 }
 
-// 音声リスト読み込み（非同期）
 if(window.speechSynthesis){
   speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices();
 }
@@ -1096,8 +1104,9 @@ setTimeout(()=>{
   const u=new SpeechSynthesisUtterance(' ');
   u.volume=0;
   u.lang='en-US';
+  u.onend=()=>{ttsReady=true;};
   speechSynthesis.speak(u);
-},1000);
+},800);
 </script>
 </body>
 </html>
