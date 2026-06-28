@@ -434,12 +434,18 @@ function renderSetup(){
     <div class="setup-title">🔑 APIキー設定</div>
     <div class="setup-desc">初回のみ入力してください。次回からは自動的に読み込まれます。</div>
     <div>
-      <div class="setup-lbl">Anthropic APIキー（sk-ant-...）</div>
-      <input class="setup-input" id="key-input" type="password" placeholder="sk-ant-api03-..." autocomplete="off">
+      <div class="setup-lbl">Anthropic APIキー（sk-ant-...）
+        ${apiKey?'<span style="color:var(--green);font-size:11px">✅ 保存済み</span>':''}
+      </div>
+      <input class="setup-input" id="key-input" type="password" 
+        placeholder="${apiKey?'変更しない場合は空白でOK':'sk-ant-api03-...'}" autocomplete="new-password">
     </div>
     <div>
-      <div class="setup-lbl">OpenAI APIキー（sk-...）※発音評価の精度向上用・任意</div>
-      <input class="setup-input" id="openai-key-input" type="password" placeholder="sk-proj-..." autocomplete="off">
+      <div class="setup-lbl">OpenAI APIキー（sk-...）任意
+        ${openaiKey?'<span style="color:var(--green);font-size:11px">✅ 保存済み</span>':''}
+      </div>
+      <input class="setup-input" id="openai-key-input" type="password" 
+        placeholder="${openaiKey?'変更しない場合は空白でOK':'sk-proj-...'}" autocomplete="new-password">
       <div style="font-size:11px;color:var(--text2);margin-top:4px">入力するとWhisperによる高精度音声認識が使えます</div>
     </div>
     <button class="setup-btn" onclick="saveApiKey()">保存して開始</button>
@@ -449,11 +455,19 @@ function renderSetup(){
 
 function saveApiKey(){
   const k=(document.getElementById('key-input').value||'').trim();
-  if(!k.startsWith('sk-ant-')){alert('AnthropicのAPIキーは sk-ant- で始まる必要があります');return;}
-  apiKey=k;
-  saveKey(k);
   const ok=(document.getElementById('openai-key-input').value||'').trim();
-  if(ok.startsWith('sk-')){openaiKey=ok;saveOpenAIKey(ok);}
+
+  // Anthropicキー：入力があれば更新、なければ既存を使用
+  if(k){
+    if(!k.startsWith('sk-ant-')){alert('AnthropicのAPIキーは sk-ant- で始まる必要があります');return;}
+    apiKey=k;
+    saveKey(k);
+  }
+  if(!apiKey){alert('AnthropicのAPIキーを入力してください');return;}
+
+  // OpenAIキー：入力があれば更新
+  if(ok&&ok.startsWith('sk-')){openaiKey=ok;saveOpenAIKey(ok);}
+
   updateApiDot();
   renderQuizSettings();
 }
@@ -1130,16 +1144,16 @@ function loadCSV(event){
 
 /* ===== INIT ===== */
 loadData();
+updateApiDot(); // OpenAIキーの状態をヘッダーに反映
 document.getElementById('hdr-ct').textContent=PH.length+' フレーズ';
 if(apiKey){renderQuizSettings();}else{renderSetup();}
 
-// TTS音声エンジンをウォームアップ（初回の途切れ防止）
+// TTS音声エンジンをウォームアップ
 setTimeout(()=>{
   if(!window.speechSynthesis)return;
   const u=new SpeechSynthesisUtterance(' ');
   u.volume=0;
   u.lang='en-US';
-  u.onend=()=>{ttsReady=true;};
   speechSynthesis.speak(u);
 },800);
 </script>
