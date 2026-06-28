@@ -168,6 +168,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
   <div class="header">
     <h1>🎙 会議英語トレーナー Pro</h1>
     <div class="hdr-right">
+      <span id="whisper-dot" style="font-size:11px;color:var(--green)"></span>
       <div class="api-dot" id="api-dot"></div>
       <span class="hdr-sub" id="hdr-ct"></span>
     </div>
@@ -360,7 +361,7 @@ let noSpeechTimer=null;
 let vizRaf=null;
 let silenceCounter=0;
 const SILENCE_THRESHOLD=10;
-const SILENCE_STOP_MS=3000;
+const SILENCE_STOP_MS=2000;
 const SILENCE_TICK=100;
 let scores={}; // フレーズごとの最新★スコア
 let lastAdvice=null; // 前回のアドバイス（Again用）
@@ -390,6 +391,8 @@ function ss(id,v){scores[id]=v;saveScores();}
 function updateApiDot(){
   const d=document.getElementById('api-dot');
   if(d)d.className='api-dot'+(apiKey?' ok':'');
+  const w=document.getElementById('whisper-dot');
+  if(w)w.textContent=openaiKey?'🎤 Whisper':'';
 }
 
 function sw(t){
@@ -413,19 +416,16 @@ function speak(txt, rate=0.88){
     ||voices.find(v=>v.lang==='en-US'&&v.localService)
     ||voices.find(v=>v.lang==='en-US');
 
-  // 無音で一度エンジンを起こしてから本番を再生
-  const primer=new SpeechSynthesisUtterance('.');
-  primer.volume=0.01;
-  primer.lang='en-US';
-  if(best)primer.voice=best;
-  primer.onend=()=>{
+  const doSpeak=()=>{
     const u=new SpeechSynthesisUtterance(txt);
     u.lang='en-US';
     u.rate=rate;
     if(best)u.voice=best;
     speechSynthesis.speak(u);
   };
-  speechSynthesis.speak(primer);
+
+  // primerなしで直接再生（音が入る問題を解消）
+  doSpeak();
 }
 function renderSetup(){
   stopAll();
