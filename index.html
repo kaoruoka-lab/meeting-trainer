@@ -364,12 +364,15 @@ const SILENCE_STOP_MS=3000;
 const SILENCE_TICK=100;
 let scores={}; // フレーズごとの最新★スコア
 let lastAdvice=null; // 前回のアドバイス（Again用）
-let isRetry=false; // Againボタンで再挑戦中か
+let isRetry=false;
+let openaiKey=''; // OpenAI APIキー（Whisper用）
 
 function loadData(){
   try{
     const k=localStorage.getItem('mtg_apikey2');
     if(k){apiKey=k;updateApiDot();}
+    const ok=localStorage.getItem('mtg_openai_key');
+    if(ok)openaiKey=ok;
     const m=localStorage.getItem('mtg_mastery4');
     if(m)mastery=JSON.parse(m);
     const s=localStorage.getItem('mtg_scores');
@@ -377,6 +380,7 @@ function loadData(){
   }catch(e){}
 }
 function saveKey(k){try{localStorage.setItem('mtg_apikey2',k);}catch(e){}}
+function saveOpenAIKey(k){try{localStorage.setItem('mtg_openai_key',k);}catch(e){}}
 function saveM(){try{localStorage.setItem('mtg_mastery4',JSON.stringify(mastery));}catch(e){}}
 function saveScores(){try{localStorage.setItem('mtg_scores',JSON.stringify(scores));}catch(e){}}
 function gm(id){return mastery[id]||0;}
@@ -433,16 +437,23 @@ function renderSetup(){
       <div class="setup-lbl">Anthropic APIキー（sk-ant-...）</div>
       <input class="setup-input" id="key-input" type="password" placeholder="sk-ant-api03-..." autocomplete="off">
     </div>
+    <div>
+      <div class="setup-lbl">OpenAI APIキー（sk-...）※発音評価の精度向上用・任意</div>
+      <input class="setup-input" id="openai-key-input" type="password" placeholder="sk-proj-..." autocomplete="off">
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">入力するとWhisperによる高精度音声認識が使えます</div>
+    </div>
     <button class="setup-btn" onclick="saveApiKey()">保存して開始</button>
-    <div class="setup-note">⚠️ キーはこのデバイスにのみ保存されます。<br>取得先: console.anthropic.com → API Keys</div>
+    <div class="setup-note">⚠️ キーはこのデバイスにのみ保存されます。<br>Anthropic: console.anthropic.com → API Keys<br>OpenAI: platform.openai.com → API keys</div>
   </div>`;
 }
 
 function saveApiKey(){
   const k=(document.getElementById('key-input').value||'').trim();
-  if(!k.startsWith('sk-ant-')){alert('APIキーは sk-ant- で始まる必要があります');return;}
+  if(!k.startsWith('sk-ant-')){alert('AnthropicのAPIキーは sk-ant- で始まる必要があります');return;}
   apiKey=k;
   saveKey(k);
+  const ok=(document.getElementById('openai-key-input').value||'').trim();
+  if(ok.startsWith('sk-')){openaiKey=ok;saveOpenAIKey(ok);}
   updateApiDot();
   renderQuizSettings();
 }
@@ -678,34 +689,57 @@ function runSTT(q){
   const recArea=document.getElementById('rec-area');
   if(recArea)recArea.innerHTML='<div class="analyzing"><div class="spinner"></div>AIが分析中...</div>';
 
-  let done=false;
-  const handle=(transcript)=>{
-    if(done)return;
-    done=true;
+  if(openaiKey){
+    // Whisperで高精度音声認識
+    const blob=new Blob(audioChunks,{type:'audio/webm'});
+    transcribeWithWhisper(blob,q);
+  } else {
+    // Web Speech APIにフォールバック
+    runSTTFallback(q);
+  }
+}
+
+async function transcribeWithWhisper(blob,q){
+  try{
+    const formData=new FormData();
+    formData.append('file',blob,'audio.webm');
+    formData.append('model','whisper-1');
+    formData.append('language','en');
+
+    const res=await fetch('https://api.openai.com/v1/audio/transcriptions',{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${openaiKey}`},
+      body:formData
+    });
+    if(!res.ok)throw new Error('Whisper API error '+res.status);
+    const data=await res.json();
+    const transcript=(data.text||'').trim();
     if(transcript){
       analyzeText(transcript,q);
     } else {
       showAnswerOnly(q);
     }
-  };
+  }catch(e){
+    // Whisper失敗→Web Speech APIにフォールバック
+    runSTTFallback(q);
+  }
+}
 
+function runSTTFallback(q){
+  let done=false;
+  const handle=(transcript)=>{
+    if(done)return;
+    done=true;
+    if(transcript){analyzeText(transcript,q);}
+    else{showAnswerOnly(q);}
+  };
   if(srInstance){
-    srInstance.onend=()=>{
-      srInstance=null;
-      handle(srTranscript.trim());
-    };
-    srInstance.onerror=()=>{
-      srInstance=null;
-      handle(srTranscript.trim());
-    };
-    try{srInstance.stop();}catch(e){
-      setTimeout(()=>handle(srTranscript.trim()),500);
-    }
+    srInstance.onend=()=>{srInstance=null;handle(srTranscript.trim());};
+    srInstance.onerror=()=>{srInstance=null;handle(srTranscript.trim());};
+    try{srInstance.stop();}catch(e){setTimeout(()=>handle(srTranscript.trim()),500);}
   } else {
     handle(srTranscript.trim());
   }
-
-  // タイムアウト保険（5秒）
   setTimeout(()=>handle(srTranscript.trim()),5000);
 }
 
@@ -729,38 +763,45 @@ ${lastAdvice.fixes.map((f,i)=>`${i+1}. ${f}`).join('\n')}
 まだ改善されていなければ「〇〇はまだ改善が必要です」と明記してください。
 `:'';
 
-  return `あなたは厳格なビジネス英語コーチです。日本語ネイティブが海外顧客・海外上長との英語会議で通用するレベルを目指しています。
+  const pronunciationSection=openaiKey?`
+【発音評価（重要）】
+Whisperによる高精度音声認識結果を使用しています。以下の発音ポイントを必ず評価してください：
+- r/l の区別（例：「right」vs「light」、「really」のrの発音）
+- th の発音（例：「the」「that」「think」）
+- v/b の区別（例：「very」「verb」）
+- 語末の子音（例：「context」「correct」の最後の音）
+- 強調すべき音節（例：「conFIRM」「preSENT」）
+- 日本語訛りの母音挿入（例：「speak」→「スピーク」のような余分な母音）
+- 自然なリンキング（例：「could you」→「クッジュ」）
+fixesには具体的な単語と正しい発音記号またはカタカナ近似音を含めてください。
+`:``;
+
+  return `あなたは厳格なビジネス英語発音コーチです。日本語ネイティブが海外顧客・海外上長との英語会議でネイティブに近い発音を目指しています。
 
 【お題の日本語】: 「${q.jp}」
 【参考正解例】: 「${q.en}」
 【ユーザーが実際に言った英語】: 「${transcript}」
-${retrySection}
+${retrySection}${pronunciationSection}
 【採点の基本方針】
-- 採点は「参考正解例との一致度」ではなく「日本語の意味を正しく英語で伝えられているか」で行う
+- 採点は「日本語の意味を正しく英語で伝えられているか」＋「発音の自然さ」で行う
 - 参考正解例と違う表現でも、意味が正確でビジネス英語として自然であれば高得点
-- 参考正解例と同じ内容を別の自然な言い方で言えた場合は「✅ 別の良い表現です」とfixesに入れず褒める
+- 参考正解例と同じ内容を別の自然な言い方で言えた場合は「✅ 別の良い表現です」と褒める
 
 【採点基準（1〜5の整数）】
-5点: 日本語の意味を完全に正確に伝えており、ビジネス英語として自然
-4点: 意味は正しく伝わるが、表現が少し不自然・簡略・または発音に軽微な問題あり
-3点: 意味はだいたい合っているが、ニュアンスがズレている、または重要な単語が抜けている
-2点: 意味が少し違う、または聞き手が理解に苦労するレベル
-1点❌: 意味が全く違う、または英語として理解不能
-
-【減点ルール】
-- 意味が変わる単語の脱落・言い間違い → 大きく減点
-- ニュアンスが少しズレる程度 → 小さく減点
-- 発音の問題（th/r/l/v/f の日本語訛り）→ 指摘するが意味が通じれば大きく減点しない
-- 文法的に間違っているが意味が通じる → 指摘して小さく減点
+5点: 意味・発音ともに完璧。ネイティブに近い自然な英語
+4点: 意味は正しく伝わる。発音に軽微な問題あり
+3点: 意味はだいたい合っているが、発音や表現に明らかな課題
+2点: 意味が少し違う、または発音が大きく崩れている
+1点❌: 意味が全く違う、または理解不能
 
 以下のJSON形式のみで返してください（前後に余計なテキスト不要）:
 {
   "transcribed": "${transcript}",
   "score": 3,
-  "meaning_check": "日本語の意味と合っているかの判定（「正確」「ほぼ正確」「ズレあり」「大きくズレ」のいずれか）",
-  "good": "良かった点を日本語で1文（本当に良い点のみ、厳しく）",
-  "fixes": ["改善点1（具体的に）", "改善点2（あれば）", "改善点3（あれば）"],
-  "tip": "最優先で直すべき点を日本語で1文（短く）"
+  "meaning_check": "「正確」「ほぼ正確」「ズレあり」「大きくズレ」のいずれか",
+  "good": "良かった点を日本語で1文",
+  "fixes": ["改善点1（具体的な単語・発音記号付きで）", "改善点2", "改善点3（あれば）"],
+  "tip": "最優先で直すべき発音ポイントを日本語で1文（短く）"
 }`;
 }
 
@@ -1031,7 +1072,7 @@ function renderStats(){
     <div class="section-head">カテゴリ別平均スコア</div>
     <div class="cat-block">${catRows}</div>
     <button class="sub-btn" onclick="if(confirm('スコアをリセットしますか？')){localStorage.removeItem('mtg_scores');scores={};renderStats();}">スコアをリセット</button>
-    <button class="sub-btn" onclick="if(confirm('APIキーを変更しますか？')){apiKey='';localStorage.removeItem('mtg_apikey2');updateApiDot();sw('quiz');renderSetup();}">🔑 APIキーを変更</button>
+    <button class="sub-btn" onclick="if(confirm('APIキーを変更しますか？')){apiKey='';openaiKey='';localStorage.removeItem('mtg_apikey2');localStorage.removeItem('mtg_openai_key');updateApiDot();sw('quiz');renderSetup();}">🔑 APIキーを変更</button>
     <div class="section-head">フレーズデータの入れ替え</div>
     <div class="upload-area" onclick="document.getElementById('csv-input').click()">
       📁 CSVファイルをタップして読み込む<br>
