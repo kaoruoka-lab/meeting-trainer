@@ -366,7 +366,8 @@ const SILENCE_TICK=100;
 let scores={}; // フレーズごとの最新★スコア
 let lastAdvice=null; // 前回のアドバイス（Again用）
 let isRetry=false;
-let openaiKey=''; // OpenAI APIキー（Whisper用）
+let openaiKey='';
+let phonetics={}; // フレーズごとのIPA発音記号
 
 function loadData(){
   try{
@@ -378,6 +379,8 @@ function loadData(){
     if(m)mastery=JSON.parse(m);
     const s=localStorage.getItem('mtg_scores');
     if(s)scores=JSON.parse(s);
+    const ph=localStorage.getItem('mtg_phonetics');
+    if(ph)phonetics=JSON.parse(ph);
   }catch(e){}
 }
 function saveKey(k){try{localStorage.setItem('mtg_apikey2',k);}catch(e){}}
@@ -858,10 +861,12 @@ function showScore(result,q){
     '正確':'#E1F5EE','ほぼ正確':'#E1F5EE','ズレあり':'#FAEEDA','大きくズレ':'#fdeee7'
   }[result.meaning_check]||'var(--bg2)';
 
+  const ipa=phonetics[String(q.id)]||'';
   const ansEl=document.getElementById('ans-area');
   if(ansEl)ansEl.innerHTML=`
     <div class="ans-card">
       <div class="en-main">${q.en}</div>
+      ${ipa?`<div style="font-size:12px;color:#0C447C;font-family:monospace;padding:4px 0">${ipa}</div>`:''}
       ${q.note?`<div class="note-box">💡 参考例 — ${q.note}</div>`:'<div class="note-box">💡 上記は参考例です。意味が合っていれば別の表現でもOK</div>'}
       <div class="speak-row">
         <button class="speak-btn" onclick="speak('${q.en.replace(/'/g,"\\'")}')">▶ 読み上げ</button>
@@ -894,6 +899,7 @@ function showAnswerOnly(q){
   if(ansEl)ansEl.innerHTML=`
     <div class="ans-card">
       <div class="en-main">${q.en}</div>
+      ${phonetics[String(q.id)]?`<div style="font-size:12px;color:#0C447C;font-family:monospace;padding:4px 0">${phonetics[String(q.id)]}</div>`:''}
       ${q.note?`<div class="note-box">💡 ${q.note}</div>`:''}
       <div class="speak-row">
         <button class="speak-btn" onclick="speak('${q.en.replace(/'/g,"\\'")}')">▶ 読み上げ</button>
@@ -1031,9 +1037,11 @@ function renderList(){
   document.getElementById('phrase-list').innerHTML=items.map(p=>{
     const s=gs(p.id);
     const scoreDisp=s!==null?`${'⭐'.repeat(s)}${'☆'.repeat(5-s)}`:'未練習';
-    return `<div class="p-item">
+    const ipa=phonetics[String(p.id)]||'';
+    return `<div class="p-item" onclick="speak('${p.en.replace(/'/g,"\\'")}')">
       <div class="p-jp">${p.jp}</div>
       <div class="p-en">${p.en}</div>
+      ${ipa?`<div style="font-size:11px;color:#0C447C;font-family:monospace;margin-top:2px">${ipa}</div>`:''}
       <div class="p-meta"><span class="p-scene">${p.cat}・${p.scene}</span><span style="font-size:11px;margin-left:auto">${scoreDisp}</span></div>
     </div>`;
   }).join('');
@@ -1087,6 +1095,13 @@ function renderStats(){
     <div class="cat-block">${catRows}</div>
     <button class="sub-btn" onclick="if(confirm('スコアをリセットしますか？')){localStorage.removeItem('mtg_scores');scores={};renderStats();}">スコアをリセット</button>
     <button class="sub-btn" onclick="if(confirm('APIキーを変更しますか？')){apiKey='';openaiKey='';localStorage.removeItem('mtg_apikey2');localStorage.removeItem('mtg_openai_key');updateApiDot();sw('quiz');renderSetup();}">🔑 APIキーを変更</button>
+    <div class="section-head">発音記号</div>
+    <div id="phonetics-status" style="font-size:12px;color:var(--text2);padding:4px 0">
+      ${Object.keys(phonetics).length>0?`✅ ${Object.keys(phonetics).length}件生成済み`:'未生成'}
+    </div>
+    <button class="sub-btn" onclick="generatePhonetics()" id="gen-btn">
+      ${Object.keys(phonetics).length>0?'🔄 発音記号を再生成':'🎵 発音記号を生成（初回のみ）'}
+    </button>
     <div class="section-head">フレーズデータの入れ替え</div>
     <div class="upload-area" onclick="document.getElementById('csv-input').click()">
       📁 CSVファイルをタップして読み込む<br>
@@ -1100,7 +1115,66 @@ function renderStats(){
     </div>`;
 }
 
-/* ===== CSV UPLOAD ===== */
+/* ===== PHONETICS GENERATION ===== */
+async function generatePhonetics(){
+  if(!apiKey){alert('APIキーが設定されていません');return;}
+  const btn=document.getElementById('gen-btn');
+  const status=document.getElementById('phonetics-status');
+  if(btn)btn.disabled=true;
+  if(status)status.textContent='生成中... (5バッチ、約1分かかります)';
+
+  const batchSize=30;
+  let total=0;
+
+  for(let i=0;i<PH.length;i+=batchSize){
+    const batch=PH.slice(i,i+batchSize);
+    const batchNum=Math.floor(i/batchSize)+1;
+    if(status)status.textContent=`生成中... バッチ${batchNum}/5`;
+
+    const phraseList=batch.map(p=>`${p.id}. ${p.en}`).join('\n');
+    const prompt=`以下のビジネス英語フレーズにUS英語のIPA発音記号を付けてください。
+
+ルール：
+- 自然な会話速度での発音を表記
+- リエゾンを反映（could you→/kʊdʒu/、did you→/dɪdʒu/、want to→/ˈwɑnə/）
+- 縮約を反映（I'll→/aɪl/、we're→/wɪr/、I'd→/aɪd/）
+- US英語（r音を明確に）
+- 強勢記号（ˈˌ）必須
+
+JSONのみ返してください：
+{"1": "/IPA/", "2": "/IPA/", ...}
+
+フレーズ：
+${phraseList}`;
+
+    try{
+      const res=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'x-api-key':apiKey,
+          'anthropic-version':'2023-06-01',
+          'anthropic-dangerous-direct-browser-access':'true'
+        },
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:prompt}]})
+      });
+      const data=await res.json();
+      const text=data.content.map(c=>c.text||'').join('').replace(/```json|```/g,'').trim();
+      const parsed=JSON.parse(text);
+      Object.assign(phonetics,parsed);
+      total+=Object.keys(parsed).length;
+      if(status)status.textContent=`生成中... ${total}件完了`;
+      localStorage.setItem('mtg_phonetics',JSON.stringify(phonetics));
+      await new Promise(r=>setTimeout(r,500));
+    }catch(e){
+      console.error('Batch error:',e);
+    }
+  }
+
+  if(btn){btn.disabled=false;btn.textContent='🔄 発音記号を再生成';}
+  if(status)status.textContent=`✅ ${Object.keys(phonetics).length}件生成済み`;
+  alert(`発音記号を${Object.keys(phonetics).length}件生成しました！一覧タブで確認できます。`);
+}
 function loadCSV(event){
   const file=event.target.files[0];
   if(!file)return;
