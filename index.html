@@ -367,7 +367,157 @@ let scores={}; // フレーズごとの最新★スコア
 let lastAdvice=null; // 前回のアドバイス（Again用）
 let isRetry=false;
 let openaiKey='';
-let phonetics={}; // フレーズごとのIPA発音記号
+const IPA_DATA = {
+  "1": "/kæn ju hɪr mi ˈklɪrli/",
+  "2": "/ɪz maɪ ˈɔːdiou ˈoʊkeɪ/",
+  "3": "/kæn ju siː maɪ skriːn/",
+  "4": "/ˈsɑːri aɪ hæd ə ˈlɪtl ˈtrʌbl ˈdʒɔɪnɪŋ/",
+  "5": "/θæŋk ju fər jər taɪm təˈdeɪ/",
+  "6": "/θæŋks fər ˈdʒɔɪnɪŋ təˈdeɪ/",
+  "7": "/θæŋk ju fər ˈteɪkɪŋ ðə taɪm tə dʒɔɪn təˈdeɪ/",
+  "8": "/θæŋk ju fər ˈsɛtɪŋ ðɪs ʌp/",
+  "9": "/lɛt mi ˈbriːfli ɪntrəˈduːs maɪˈsɛlf/",
+  "10": "/maɪ neɪm ɪz ˈkɑːruː ˈoʊkə pleɪz kɔːl mi ˈkɑːruː/",
+  "11": "/aɪm rɪˈspɑːnsɪbl fər dʒæpəˈniːz ˌloʊkələˈzeɪʃn ænd rɪˈvjuː ˌkoʊɔːrdɪˈneɪʃn/",
+  "12": "/aɪ mænɪdʒ ðə ˈɪŋɡlɪʃ tə dʒæpəˈniːz ˌloʊkələˈzeɪʃn ˈwɜːrkfloʊ/",
+  "13": "/aɪ ˈmeɪnli hændl ˈʃɛdjuːl ˌkoʊɔːrdɪˈneɪʃn ænd ˈvɛndər kəˌmjuːnɪˈkeɪʃn/",
+  "14": "/aɪ hæv ɪkˈspɪriəns ɪn ˌloʊkələˈzeɪʃn ˈprɒdʒɛkt ˈmænɪdʒmənt ænd ˈklaɪənt kəˌmjuːnɪˈkeɪʃn/",
+  "15": "/ðə ˈpɜːrpəs əv təˈdeɪz ˈmiːtɪŋ ɪz tə əˈlaɪn ɑːn ðə trænsˈleɪʃn skoʊp ænd ˈʃɛdjuːl/",
+  "16": "/təˈdeɪ aɪd laɪk tə ɡoʊ ˈoʊvər ðə ˈproʊɡrɛs ænd dɪˈskʌs ˈɛni kənˈsɜːrnz/",
+  "17": "/lɛts fɜːrst ɡoʊ ˈoʊvər ðə ˈproʊɡrɛs ænd ðɛn dɪˈskʌs ðə ˈoʊpən ˈkwɛstʃənz/",
+  "18": "/aɪl kiːp ɪt briːf/",
+  "19": "/ˈsɑːri kʊdʒu seɪ ðæt əˈɡɛn/",
+  "20": "/kʊdʒu rɪˈpiːt ðə ˈkwɛstʃən/",
+  "21": "/aɪ ˈdɪdnt kætʃ ðə læst pɑːrt/",
+  "22": "/ˈsɑːri aɪ mɪst ðæt pɑːrt/",
+  "23": "/kʊdʒu spiːk ə ˈlɪtl mɔːr ˈsloʊli/",
+  "24": "/kʊdʒu rɪˈfreɪz ðæt/",
+  "25": "/kʊdʒu ɡɪv mi ə ˈlɪtl mɔːr ˈkɑːntɛkst/",
+  "26": "/lɛt mi meɪk ʃʊr aɪ ˌʌndərˈstʊd kəˈrɛktli/",
+  "27": "/lɛt mi kənˈfɜːrm maɪ ˌʌndərˈstændɪŋ/",
+  "28": "/soʊ wi niːd tə ʌpˈdeɪt ðə ˈʃɛdjuːl kəˈrɛkt/",
+  "29": "/dʒʌst tə kənˈfɜːrm ðə ˈdɛdlaɪn ɪz nɛkst ˈfraɪdeɪ raɪt/",
+  "30": "/kʊdʒu ɡɪv mi ən ɪɡˈzæmpl/",
+  "31": "/kʊdʒu sɛnd ðæt tə mi baɪ ˈiːmeɪl/",
+  "32": "/kʊdʒu pʊt ðæt ɪn ðə tʃæt/",
+  "33": "/kʊdʒu ɡɪv mi ə kwɪk ˈʌpdeɪt ɑːn ðɪs/",
+  "34": "/kʊdʒu ɡɪv mi ən ˈʌpdeɪt ɑːn ðə ˈkɜːrənt ˈsteɪtəs/",
+  "35": "/ɑːr wi stɪl ɑːn træk fər ðə ˈdɛdlaɪn/",
+  "36": "/haʊ fɑːr əˈlɒŋ ɪz ðə rɪˈvjuː/",
+  "37": "/ɪz ˈɛniθɪŋ ˈblɒkɪŋ jər ˈproʊɡrɛs/",
+  "38": "/ɑːr ðər ˈɛni ˈɪʃuːz æt ðɪs pɔɪnt/",
+  "39": "/kʊdʒu ɪkˈspleɪn wʌt kɔːzd ðə dɪˈleɪ/",
+  "40": "/wɪtʃ tæsk ʃʊd wi praɪˈɒrɪtaɪz/",
+  "41": "/duː wi niːd ˈɛni əˈdɪʃənl səˈpɔːrt/",
+  "42": "/θɪŋz ɑːr ˈmoʊstli ɑːn træk/",
+  "43": "/ðə ˈprɒdʒɛkt ɪz ɑːn træk/",
+  "44": "/wi ɑːr ˈslaɪtli bɪˈhaɪnd ˈʃɛdʒuːl/",
+  "45": "/wɪv kəmˈpliːtɪd ðə fɜːrst raʊnd əv rɪˈvjuː/",
+  "46": "/ðə trænsˈleɪʃn ɪz stɪl ɪn ˈproʊɡrɛs/",
+  "47": "/wɪr ˈweɪtɪŋ fər ˈfiːdbæk frəm ðə ˈklaɪənt/",
+  "48": "/wi ɪkˈspɛkt tə fɪnɪʃ ɪt baɪ ˈwɛnzdeɪ/",
+  "49": "/ðər ɑːr noʊ ˈmeɪdʒər ˈɪʃuːz æt ðɪs pɔɪnt/",
+  "50": "/ðɛrz wʌn ˈɪʃuː aɪd laɪk tə dɪˈskʌs/",
+  "51": "/kʊdʒu teɪk ðə fɜːrst rɪˈvjuː/",
+  "52": "/kʊdʒu duː ə ˈfaɪnl tʃɛk ɑːn ðɪs ˈdɒkjumənt/",
+  "53": "/aɪl əˈsaɪn ðɪs tə ðə rɪˈvjuːər/",
+  "54": "/pleɪz praɪˈɒrɪtaɪz ðɪs ˈdɒkjumənt/",
+  "55": "/wʊdɪt bi ˈpɒsɪbl tə praɪˈɒrɪtaɪz ðɪs ˈaɪtəm/",
+  "56": "/kʊdʒu tʃɛk ðə ˌtɜːrmɪˈnɒlədʒi fɜːrst/",
+  "57": "/lɛts splɪt ðɪs ˈɪntə trænsˈleɪʃn rɪˈvjuː ænd ˈfaɪnl tʃɛk/",
+  "58": "/wʊdɪt bi ˈpɒsɪbl tə tʃɛk ðɪs baɪ ðɪ ɛnd əv təˈdeɪ/",
+  "59": "/wʊdʒu bi ˈeɪbl tə teɪk ðɪs ɑːn/",
+  "60": "/pleɪz peɪ ˈspɛʃl əˈtɛnʃn tə ˌtɜːrmɪˈnɒlədʒi kənˈsɪstənsi/",
+  "61": "/pleɪz lɛt mi noʊ wʌns ɪts dʌn/",
+  "62": "/kʊdʒu ʃɛr ðə ˈleɪtɪst faɪl/",
+  "63": "/kʊdʒu sɛnd ʌs ðə ˈrɛfrəns məˈtɪriəlz/",
+  "64": "/kʊdʒu ˈklærɪfaɪ wʌt ðɪs ˈsɛntəns ɪz rɪˈfɜːrɪŋ tuː/",
+  "65": "/lɛt mi kənˈfɜːrm ðɪ ɪnˈtɛnt bɪˈhaɪnd ðɪs ˈwɜːrdɪŋ/",
+  "66": "/duː ju miːn ðɪs ˈfiːtʃər ɪz ˈoʊnli əˈveɪləbl tə dɪˈvɛləpərz/",
+  "67": "/ɪz ðɪs tɜːrm spɪˈsɪfɪk tə ðə ˈpleɪsteɪʃn ˈplætfɔːrm/",
+  "68": "/ʃʊd wi kiːp ðɪ ˈɒrɪdʒɪnl toʊn ɔːr ədˈdʒʌst ɪt tə saʊnd mɔːr ˈnætʃrəl ɪn dʒæpəˈniːz/",
+  "69": "/ɪz ðɪs ˈdɒkjumənt ˈmeɪnli fər dɪˈvɛləpərz/",
+  "70": "/lɛt mi kənˈfɜːrm ðə skoʊp əv ðɪs trænsˈleɪʃn/",
+  "71": "/ɪz ðɪs pɑːrt beɪst ɑːn ðə ˈleɪtɪst ˌspɛsɪfɪˈkeɪʃn/",
+  "72": "/ðə sɔːrs tɛkst ɪz nɒt ˈfaɪnlaɪzd jɛt/",
+  "73": "/sʌm strɪŋz ɑːr ʌnˈklɪər wɪˈðaʊt ˈkɑːntɛkst/",
+  "74": "/aɪ doʊnt wɒnə ɡɪv ju ən ɪnˈækjərɪt ˈɑːnsər soʊ lɛt mi tʃɛk ænd ɡɛt bæk tə ju/",
+  "75": "/ðə trænsˈleɪʃn ɪz ˈækjərɪt bʌt ɪt saʊndz ə ˈlɪtl tuː ˈlɪtərəl ɪn dʒæpəˈniːz/",
+  "76": "/ðə ˈmiːnɪŋ ɪz kəˈrɛkt bʌt ðə ˈwɜːrdɪŋ kʊd bi mɔːr ˈnætʃrəl/",
+  "77": "/ðɪs ˈsɛntəns maɪt bi kənˈfjuːzɪŋ fər ðə ˈriːdər/",
+  "78": "/wi meɪ niːd tə ˈriːraɪt ðɪs tə meɪk ɪt ˈiːziər fər dʒæpəˈniːz dɪˈvɛləpərz tə ˌʌndərˈstænd/",
+  "79": "/wi niːd tə tʃɛk ðə ˌtɜːrmɪˈnɒlədʒi kənˈsɪstənsi/",
+  "80": "/ðə peɪdʒ ˈstrʌktʃər kʊd bi ɪmˈpruːvd/",
+  "81": "/ɪt maɪt bi ˈbɛtər tə muːv ðɪs ˌɪnfərˈmeɪʃn ˈhaɪər ʌp ɑːn ðə peɪdʒ/",
+  "82": "/aɪd laɪk tə tʃɛk ˈwɛðər ðɪs trænsˈleɪʃn rɪˈflɛkts ðɪ ˈɒrɪdʒɪnl ɪnˈtɛnt/",
+  "83": "/tə meɪk ɪt ˈklɪrər aɪ θɪŋk wi kæn splɪt ðɪs ˈsɛntəns ɪntə tuː/",
+  "84": "/ˈoʊvərɔːl ɪt lʊks ɡʊd bʌt wi ʃʊd ədˈdʒʌst ə fjuː ɪkˈsprɛʃənz/",
+  "85": "/wi meɪ niːd tə ədˈdʒʌst ðə ˈʃɛdjuːl/",
+  "86": "/wʊdɪt bi ˈpɒsɪbl tə ɪkˈstɛnd ðə ˈdɛdlaɪn baɪ wʌn ˈbɪznɪs deɪ/",
+  "87": "/wi meɪ niːd ə ˈlɪtl mɔːr taɪm fər ðə rɪˈvjuː/",
+  "88": "/wi kæn dɪˈlɪvər ðə ˈhaɪɪst ˈpraɪɒrɪti ˈsɛkʃən fɜːrst/",
+  "89": "/wi meɪ niːd tə ˈnærəʊ ðə skoʊp tə miːt ðə ˈdɛdlaɪn/",
+  "90": "/aɪl tʃɛk wɪð ðə tiːm ænd ɡɛt bæk tə ju/",
+  "91": "/ðɪs ˈʃɛdjuːl meɪ krɪˈeɪt sʌm ˈkwɒlɪti rɪsks/",
+  "92": "/ðɪs meɪ əˈfɛkt ðə dɪˈlɪvəri deɪt/",
+  "93": "/wʌn ˈɒpʃən ɪz tə splɪt ðə rɪˈvjuː ɪntə tuː ˈsteɪdʒɪz/",
+  "94": "/kʊdʒu kənˈfɜːrm ðə ˈʃɛdjuːl baɪ təˈmɒroʊ/",
+  "95": "/ðə rɪˈvjuː ɪz ˈteɪkɪŋ ˈlɒŋər ðæn ɪkˈspɛktɪd/",
+  "96": "/ðə ˈvɒljuːm ɪz ˈlɑːrdʒər ðæn ɪkˈspɛktɪd/",
+  "97": "/aɪl ʃɛr ðɪ ʌpˈdeɪtɪd ˈʃɛdjuːl ˈɑːftər ðə ˈmiːtɪŋ/",
+  "98": "/ðə meɪn kənˈsɜːrn ɪz ðə taɪt ˈʃɛdjuːl/",
+  "99": "/wi niːd tə ˈklærɪfaɪ ðə praɪˈɒrɪtiz/",
+  "100": "/wi niːd ðə ˈklaɪənts ˌkɒnfɜːˈmeɪʃn bɪˈfɔːr ˈmuːvɪŋ ˈfɔːrwərd/",
+  "101": "/aɪ doʊnt hæv ðɪ ɪɡˈzækt ˌɪnfərˈmeɪʃn raɪt naʊ/",
+  "102": "/aɪm nɒt ʃʊr jɛt bʌt aɪ kæn tʃɛk/",
+  "103": "/aɪ doʊnt hæv ðɪ ˈɑːnsər raɪt naʊ bʌt aɪl ˈfɒloʊ ʌp ˈɑːftər ðə ˈmiːtɪŋ/",
+  "104": "/aɪ meɪ niːd tə tʃɛk ɪnˈtɜːrnəli/",
+  "105": "/aɪl teɪk ðæt æz ən ˈækʃən ˈaɪtəm/",
+  "106": "/kʊd wi dɪˈskʌs ðɪs ˈɑːftər ðə ˈmiːtɪŋ/",
+  "107": "/aɪm nɒt ʃʊr bʌt maɪ ˈkɜːrənt ˌʌndərˈstændɪŋ ɪz jɛs/",
+  "108": "/aɪ əˈɡriː wɪð ju ɑːn ðæt pɔɪnt/",
+  "109": "/aɪ siː ɪt ə ˈlɪtl ˈdɪfrəntli/",
+  "110": "/aɪ θɪŋk ðæt ʃʊd bi ˈpɒsɪbl/",
+  "111": "/ðæt maɪt bi ə ˈlɪtl ˈdɪfɪklt/",
+  "112": "/maɪ ˌʌndərˈstændɪŋ ɪz ðæt ðər ɑːr tuː meɪn ˈɪʃuːz/",
+  "113": "/ðæts ə ɡʊd pɔɪnt/",
+  "114": "/lɛts tɛst ɪt ɑːn ə smɔːl skoʊp fɜːrst ænd tʃɛk ðə ˈkwɒlɪti/",
+  "115": "/wi maɪt bi ˈeɪbl tə meɪk ðɪs ˈproʊsɛs mɔːr ɪˈfɪʃnt baɪ ˈjuːzɪŋ eɪ aɪ/",
+  "116": "/wi kæn juːz məˈʃiːn trænsˈleɪʃn æz ə fɜːrst dræft bʌt ˈhjuːmən rɪˈvjuː ɪz stɪl ˈnɛsəsri/",
+  "117": "/eɪ aɪ kæn hɛlp ɪmˈpruːv kənˈsɪstənsi bʌt wi niːd tə tʃɛk ðə ˌtɜːrmɪˈnɒlədʒi ˈkɛrfəli/",
+  "118": "/ðɪs taɪp əv ˈkɒntɛnt meɪ bi ˈsuːtəbl fər ɛm tiː piː iː/",
+  "119": "/wi ʃʊd dɪˈfaɪn ðə rɪˈvjuː ˈproʊsɛs bɪˈfɔːr ˈjuːzɪŋ eɪ aɪ ˈaʊtpʊt/",
+  "120": "/lɛts kəmˈpɛr ðɪ eɪ aɪ ˈaʊtpʊt wɪð ðɪ ɪɡˈzɪstɪŋ staɪl ɡaɪd/",
+  "121": "/eɪ aɪ ˈaʊtpʊt meɪ ɪnˈkluːd mɪsˈtrænsleɪʃənz ɔːr ʌnˈnætʃrəl ˈwɜːrdɪŋ/",
+  "122": "/ðə ˈfaɪnl ˈkwɒlɪti niːdz tə bi ɪnˈʃʊrd θruː ˈhjuːmən rɪˈvjuː/",
+  "123": "/ˈjuːzɪŋ ə ˈɡlɒsəri kæn ɪmˈpruːv ðə kənˈsɪstənsi əv eɪ aɪ trænsˈleɪʃn/",
+  "124": "/aɪl kənˈfɜːrm ðɪs pɔɪnt wɪð ðə ˈklaɪənt/",
+  "125": "/aɪl ʃɛr ðɪ ʌpˈdeɪt wʌns wi hɪr bæk frəm ðə ˈklaɪənt/",
+  "126": "/aɪd laɪk tə kənˈfɜːrm ðɪ ˈoʊvərsiːz tiːmz ˌʌndərˈstændɪŋ æz wɛl/",
+  "127": "/ðə dʒəˈpæn saɪd wɪl hændl ðə rɪˈvjuː ænd ðɪ ˈoʊvərsiːz saɪd wɪl kənˈfɜːrm ðə sɔːrs tɛkst/",
+  "128": "/tə əˈlaɪn ɪkˈspɛktəʃənz lɛt mi kənˈfɜːrm ðə dɪˈlɪvəri skoʊp/",
+  "129": "/ɪf ˈpɒsɪbl wi wʊd əˈpriːʃiˌeɪt jər ˈfiːdbæk baɪ ðɪ ɛnd əv təˈdeɪ/",
+  "130": "/pleɪz lɛt mi noʊ ɪf ju hæv ˈɛni kənˈsɜːrnz/",
+  "131": "/ɑːr ðər ˈɛni ˈʌðər pɔɪnts wi niːd tə kənˈfɜːrm/",
+  "132": "/aɪd laɪk tə meɪk ʃʊr wɪr ɑːn ðə seɪm peɪdʒ/",
+  "133": "/dʌz ðɪs əˈproʊtʃ wɜːrk fər ju/",
+  "134": "/lɛt mi ˈsʌməraɪz təˈdeɪz dɪˈskʌʃn/",
+  "135": "/lɛt mi ˈsʌməraɪz ðɪ ˈækʃən ˈaɪtəmz/",
+  "136": "/wi meɪd θriː dɪˈsɪʒənz təˈdeɪ/",
+  "137": "/ðə nɛkst ˈækʃən ɪz tə tʃɛk ðə ˌtɜːrmɪˈnɒlədʒi wɪð ðɪ ˈɒrɪdʒɪnl ˈɔːθər/",
+  "138": "/aɪl teɪk ˈkɛər əv ðɪs tæsk/",
+  "139": "/maɪ ˈækʃən ˈaɪtəm ɪz tə tʃɛk ðə ˈʃɛdjuːl/",
+  "140": "/aɪl æsk ðə rɪˈvjuːər tə teɪk ˈkɛər əv ðɪs/",
+  "141": "/kʊdʒu kənˈfɜːrm ðə sɔːrs faɪl æz jər ˈækʃən ˈaɪtəm/",
+  "142": "/aɪl sɛnd ə ˈfɒloʊ ʌp ˈiːmeɪl ˈɑːftər ðɪs ˈmiːtɪŋ/",
+  "143": "/aɪl ˈfɒloʊ ʌp baɪ ˈiːmeɪl/",
+  "144": "/kʊdʒu kənˈfɜːrm ðə ˈdɛdlaɪn baɪ təˈmɒroʊ/",
+  "145": "/aɪl ˈfɒloʊ ʌp ɑːn ðɪ ˈoʊpən ˈaɪtəmz baɪ ˈiːmeɪl/",
+  "146": "/ɪz ðər ˈɛniθɪŋ ɛls wi ʃʊd kənˈfɜːrm/",
+  "147": "/ɪz ðər ˈɛniθɪŋ ɛls wi ʃʊd dɪˈskʌs/",
+  "148": "/θæŋks ˈɛvriwʌn ðæts ɔːl frəm maɪ saɪd/"
+};
+let phonetics={...IPA_DATA}; // フレーズごとのIPA発音記号（HTML直埋め込み）
 
 function loadData(){
   try{
@@ -380,7 +530,7 @@ function loadData(){
     const s=localStorage.getItem('mtg_scores');
     if(s)scores=JSON.parse(s);
     const ph=localStorage.getItem('mtg_phonetics');
-    if(ph)phonetics=JSON.parse(ph);
+    if(ph)Object.assign(phonetics,JSON.parse(ph));
   }catch(e){}
 }
 function saveKey(k){try{localStorage.setItem('mtg_apikey2',k);}catch(e){}}
@@ -1024,6 +1174,12 @@ function renderSummary(){
 
 /* ===== LIST ===== */
 function renderList(){
+  // localStorageの追加分をマージ（IPA_DATAがベース）
+  try{
+    const ph=localStorage.getItem('mtg_phonetics');
+    if(ph)Object.assign(phonetics,JSON.parse(ph));
+  }catch(e){}
+
   document.getElementById('filter-row').innerHTML=CATS.map(c=>
     `<button class="chip${filterCat===c?' active':''}" onclick="filterCat='${c}';renderList()">${c}</button>`
   ).join('');
@@ -1118,62 +1274,94 @@ function renderStats(){
 /* ===== PHONETICS GENERATION ===== */
 async function generatePhonetics(){
   if(!apiKey){alert('APIキーが設定されていません');return;}
+
+  const missing=PH.filter(p=>!phonetics[String(p.id)]);
+  if(missing.length===0){alert('全フレーズの発音記号が既に生成されています！');return;}
+
   const btn=document.getElementById('gen-btn');
   const status=document.getElementById('phonetics-status');
   if(btn)btn.disabled=true;
-  if(status)status.textContent='生成中... (5バッチ、約1分かかります)';
+  if(status)status.textContent=`未生成${missing.length}件を生成中...`;
 
-  const batchSize=30;
-  let total=0;
-
-  for(let i=0;i<PH.length;i+=batchSize){
-    const batch=PH.slice(i,i+batchSize);
-    const batchNum=Math.floor(i/batchSize)+1;
-    if(status)status.textContent=`生成中... バッチ${batchNum}/5`;
-
+  const callAPI=async(batch)=>{
     const phraseList=batch.map(p=>`${p.id}. ${p.en}`).join('\n');
     const prompt=`以下のビジネス英語フレーズにUS英語のIPA発音記号を付けてください。
 
 ルール：
 - 自然な会話速度での発音を表記
-- リエゾンを反映（could you→/kʊdʒu/、did you→/dɪdʒu/、want to→/ˈwɑnə/）
+- リエゾンを反映（could you→/kʊdʒu/、want to→/ˈwɑnə/）
 - 縮約を反映（I'll→/aɪl/、we're→/wɪr/、I'd→/aɪd/）
-- US英語（r音を明確に）
+- US英語（rを明確に）
 - 強勢記号（ˈˌ）必須
 
-JSONのみ返してください：
-{"1": "/IPA/", "2": "/IPA/", ...}
+JSONのみ返してください（前後に他のテキスト不要）：
+{"${batch[0].id}": "/IPA/", ...}
 
 フレーズ：
 ${phraseList}`;
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:prompt}]})
+    });
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const text=data.content.map(c=>c.text||'').join('').replace(/```json|```/g,'').trim();
+    return JSON.parse(text);
+  };
 
-    try{
-      const res=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'x-api-key':apiKey,
-          'anthropic-version':'2023-06-01',
-          'anthropic-dangerous-direct-browser-access':'true'
-        },
-        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:prompt}]})
-      });
-      const data=await res.json();
-      const text=data.content.map(c=>c.text||'').join('').replace(/```json|```/g,'').trim();
-      const parsed=JSON.parse(text);
-      Object.assign(phonetics,parsed);
-      total+=Object.keys(parsed).length;
-      if(status)status.textContent=`生成中... ${total}件完了`;
-      localStorage.setItem('mtg_phonetics',JSON.stringify(phonetics));
-      await new Promise(r=>setTimeout(r,500));
-    }catch(e){
-      console.error('Batch error:',e);
+  // バッチサイズ25で処理、失敗したら個別に再試行
+  const batchSize=25;
+  const batches=[];
+  for(let i=0;i<missing.length;i+=batchSize) batches.push(missing.slice(i,i+batchSize));
+
+  for(let bi=0;bi<batches.length;bi++){
+    const batch=batches[bi];
+    if(status)status.textContent=`バッチ${bi+1}/${batches.length}処理中... (計${Object.keys(phonetics).length}件完了)`;
+    
+    let parsed={};
+    for(let attempt=1;attempt<=3;attempt++){
+      try{
+        parsed=await callAPI(batch);
+        break;
+      }catch(e){
+        console.error(`Batch ${bi+1} attempt ${attempt} failed:`,e);
+        if(attempt<3)await new Promise(r=>setTimeout(r,2000*attempt));
+      }
     }
+    Object.assign(phonetics,parsed);
+    localStorage.setItem('mtg_phonetics',JSON.stringify(phonetics));
+
+    // 欠けているものを個別再試行
+    const gotIds=Object.keys(parsed);
+    const stillMissing=batch.filter(p=>!gotIds.includes(String(p.id)));
+    for(const p of stillMissing){
+      if(status)status.textContent=`No.${p.id}を個別再試行中...`;
+      for(let attempt=1;attempt<=3;attempt++){
+        try{
+          const result=await callAPI([p]);
+          Object.assign(phonetics,result);
+          localStorage.setItem('mtg_phonetics',JSON.stringify(phonetics));
+          break;
+        }catch(e){
+          if(attempt<3)await new Promise(r=>setTimeout(r,1500));
+        }
+      }
+      await new Promise(r=>setTimeout(r,500));
+    }
+    if(bi<batches.length-1)await new Promise(r=>setTimeout(r,800));
   }
 
+  const finalCount=Object.keys(phonetics).length;
+  const stillMissing=PH.length-finalCount;
   if(btn){btn.disabled=false;btn.textContent='🔄 発音記号を再生成';}
-  if(status)status.textContent=`✅ ${Object.keys(phonetics).length}件生成済み`;
-  alert(`発音記号を${Object.keys(phonetics).length}件生成しました！一覧タブで確認できます。`);
+  if(status)status.textContent=`✅ ${finalCount}件生成済み${stillMissing>0?` (残り${stillMissing}件未生成)`:''}`;
+  renderStats();
+  if(stillMissing>0){
+    alert(`${finalCount}件生成完了。\n残り${stillMissing}件は再度ボタンを押してください。`);
+  } else {
+    alert(`全${finalCount}件の発音記号を生成しました！一覧タブで確認できます。`);
+  }
 }
 function loadCSV(event){
   const file=event.target.files[0];
