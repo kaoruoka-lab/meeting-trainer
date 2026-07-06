@@ -120,7 +120,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
 .restart-btn{padding:12px 20px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:var(--bg2);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit}
 
 /* List */
-.list-top{padding:12px 14px;display:flex;flex-direction:column;gap:10px;border-bottom:0.5px solid var(--border2);position:sticky;top:93px;background:var(--bg);z-index:10}
+.list-top{padding:12px 14px;display:flex;flex-direction:column;gap:10px;border-bottom:0.5px solid var(--border2);background:var(--bg)}
 .search-input{width:100%;padding:10px 14px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:var(--bg2);font-size:14px;color:var(--text);font-family:inherit;outline:none}
 .search-input:focus{border-color:var(--green)}
 .filter-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
@@ -1180,6 +1180,10 @@ function renderList(){
     const ph=localStorage.getItem('mtg_phonetics');
     if(ph)Object.assign(phonetics,JSON.parse(ph));
   }catch(e){}
+
+  // スクロールを先頭に戻す
+  const listEl=document.getElementById('list');
+  if(listEl)listEl.scrollTop=0;
 
   document.getElementById('filter-row').innerHTML=CATS.map(c=>
     `<button class="chip${filterCat===c?' active':''}" onclick="filterCat='${c}';renderList()">${c}</button>`
