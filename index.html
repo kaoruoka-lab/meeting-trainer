@@ -140,7 +140,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
 .p-dot{width:6px;height:6px;border-radius:50%;background:var(--border)}
 .p-dot.on{background:var(--green)}
 
-/* Stats */
+/* Listening mode */
+.listen-wrap{padding:16px;display:flex;flex-direction:column;gap:14px}
+.listen-card{background:var(--bg2);border-radius:var(--radius);padding:24px 18px;text-align:center;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.listen-no{font-size:11px;color:var(--text2)}
+.listen-jp{font-size:20px;font-weight:500;line-height:1.6;color:var(--text)}
+.listen-en{font-size:16px;font-weight:600;color:var(--green-dark);line-height:1.5;opacity:0;transition:opacity 0.5s}
+.listen-en.show{opacity:1}
+.listen-ipa{font-size:12px;color:#0C447C;font-family:monospace;opacity:0;transition:opacity 0.5s}
+.listen-ipa.show{opacity:1}
+.listen-status{font-size:13px;color:var(--text2);text-align:center}
+.listen-progress{height:3px;background:var(--border2);border-radius:2px;overflow:hidden}
+.listen-progress-fill{height:100%;background:var(--green);border-radius:2px;transition:width 0.3s}
+.listen-controls{display:flex;gap:8px}
+.listen-btn{flex:1;padding:13px;border-radius:var(--radius-sm);border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+.listen-start{background:var(--green);color:#fff}
+.listen-start:active{background:var(--green-dark)}
+.listen-stop{background:var(--bg2);color:var(--text2);border:0.5px solid var(--border)}
+.listen-stop:active{background:var(--bg3)}
+.listen-settings{display:flex;flex-direction:column;gap:10px}
 .stats-wrap{padding:14px;display:flex;flex-direction:column;gap:12px;padding-bottom:40px}
 .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .stat-card{background:var(--bg2);border-radius:var(--radius-sm);padding:14px;text-align:center}
@@ -177,6 +195,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
   <div class="tabs">
     <div class="tab active" onclick="sw('quiz')">練習</div>
     <div class="tab" onclick="sw('list')">一覧</div>
+    <div class="tab" onclick="sw('listen')">聞き流し</div>
     <div class="tab" onclick="sw('stats')">習熟度</div>
   </div>
   <div id="quiz" class="screen active"><div id="quiz-body"></div></div>
@@ -188,6 +207,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
     <div class="list-count" id="list-count"></div>
     <div class="phrase-list" id="phrase-list"></div>
   </div>
+  <div id="listen" class="screen"><div id="listen-body"></div></div>
   <div id="stats" class="screen"><div class="stats-wrap" id="stats-body"></div></div>
 </div>
 
@@ -381,9 +401,9 @@ const IPA_DATA = {
   "10": "/maɪ neɪm ɪz ˈkɑːruː ˈoʊkə pleɪz kɔːl mi ˈkɑːruː/",
   "11": "/aɪm rɪˈspɑːnsɪbl fər dʒæpəˈniːz ˌloʊkələˈzeɪʃn ænd rɪˈvjuː ˌkoʊɔːrdɪˈneɪʃn/",
   "12": "/aɪ mænɪdʒ ðə ˈɪŋɡlɪʃ tə dʒæpəˈniːz ˌloʊkələˈzeɪʃn ˈwɜːrkfloʊ/",
-  "13": "/aɪ ˈmeɪnli hændl ˈʃɛdjuːl ˌkoʊɔːrdɪˈneɪʃn ænd ˈvɛndər kəˌmjuːnɪˈkeɪʃn/",
+  "13": "/aɪ ˈmeɪnli hændl ˈskɛdʒuːl ˌkoʊɔːrdɪˈneɪʃn ænd ˈvɛndər kəˌmjuːnɪˈkeɪʃn/",
   "14": "/aɪ hæv ɪkˈspɪriəns ɪn ˌloʊkələˈzeɪʃn ˈprɒdʒɛkt ˈmænɪdʒmənt ænd ˈklaɪənt kəˌmjuːnɪˈkeɪʃn/",
-  "15": "/ðə ˈpɜːrpəs əv təˈdeɪz ˈmiːtɪŋ ɪz tə əˈlaɪn ɑːn ðə trænsˈleɪʃn skoʊp ænd ˈʃɛdjuːl/",
+  "15": "/ðə ˈpɜːrpəs əv təˈdeɪz ˈmiːtɪŋ ɪz tə əˈlaɪn ɑːn ðə trænsˈleɪʃn skoʊp ænd ˈskɛdʒuːl/",
   "16": "/təˈdeɪ aɪd laɪk tə ɡoʊ ˈoʊvər ðə ˈproʊɡrɛs ænd dɪˈskʌs ˈɛni kənˈsɜːrnz/",
   "17": "/lɛts fɜːrst ɡoʊ ˈoʊvər ðə ˈproʊɡrɛs ænd ðɛn dɪˈskʌs ðə ˈoʊpən ˈkwɛstʃənz/",
   "18": "/aɪl kiːp ɪt briːf/",
@@ -393,10 +413,10 @@ const IPA_DATA = {
   "22": "/ˈsɑːri aɪ mɪst ðæt pɑːrt/",
   "23": "/kʊdʒu spiːk ə ˈlɪtl mɔːr ˈsloʊli/",
   "24": "/kʊdʒu rɪˈfreɪz ðæt/",
-  "25": "/kʊdʒu ɡɪv mi ə ˈlɪtl mɔːr ˈkɑːntɛkst/",
+  "25": "/kʊdʒu ɡɪv mi ə ˈlɪtl mɔːr ˈkæntɛkst/",
   "26": "/lɛt mi meɪk ʃʊr aɪ ˌʌndərˈstʊd kəˈrɛktli/",
   "27": "/lɛt mi kənˈfɜːrm maɪ ˌʌndərˈstændɪŋ/",
-  "28": "/soʊ wi niːd tə ʌpˈdeɪt ðə ˈʃɛdjuːl kəˈrɛkt/",
+  "28": "/soʊ wi niːd tə ʌpˈdeɪt ðə ˈskɛdʒuːl kəˈrɛkt/",
   "29": "/dʒʌst tə kənˈfɜːrm ðə ˈdɛdlaɪn ɪz nɛkst ˈfraɪdeɪ raɪt/",
   "30": "/kʊdʒu ɡɪv mi ən ɪɡˈzæmpl/",
   "31": "/kʊdʒu sɛnd ðæt tə mi baɪ ˈiːmeɪl/",
@@ -441,7 +461,7 @@ const IPA_DATA = {
   "70": "/lɛt mi kənˈfɜːrm ðə skoʊp əv ðɪs trænsˈleɪʃn/",
   "71": "/ɪz ðɪs pɑːrt beɪst ɑːn ðə ˈleɪtɪst ˌspɛsɪfɪˈkeɪʃn/",
   "72": "/ðə sɔːrs tɛkst ɪz nɒt ˈfaɪnlaɪzd jɛt/",
-  "73": "/sʌm strɪŋz ɑːr ʌnˈklɪər wɪˈðaʊt ˈkɑːntɛkst/",
+  "73": "/sʌm strɪŋz ɑːr ʌnˈklɪər wɪˈðaʊt ˈkæntɛkst/",
   "74": "/aɪ doʊnt wɒnə ɡɪv ju ən ɪnˈækjərɪt ˈɑːnsər soʊ lɛt mi tʃɛk ænd ɡɛt bæk tə ju/",
   "75": "/ðə trænsˈleɪʃn ɪz ˈækjərɪt bʌt ɪt saʊndz ə ˈlɪtl tuː ˈlɪtərəl ɪn dʒæpəˈniːz/",
   "76": "/ðə ˈmiːnɪŋ ɪz kəˈrɛkt bʌt ðə ˈwɜːrdɪŋ kʊd bi mɔːr ˈnætʃrəl/",
@@ -453,20 +473,20 @@ const IPA_DATA = {
   "82": "/aɪd laɪk tə tʃɛk ˈwɛðər ðɪs trænsˈleɪʃn rɪˈflɛkts ðɪ ˈɒrɪdʒɪnl ɪnˈtɛnt/",
   "83": "/tə meɪk ɪt ˈklɪrər aɪ θɪŋk wi kæn splɪt ðɪs ˈsɛntəns ɪntə tuː/",
   "84": "/ˈoʊvərɔːl ɪt lʊks ɡʊd bʌt wi ʃʊd ədˈdʒʌst ə fjuː ɪkˈsprɛʃənz/",
-  "85": "/wi meɪ niːd tə ədˈdʒʌst ðə ˈʃɛdjuːl/",
+  "85": "/wi meɪ niːd tə ədˈdʒʌst ðə ˈskɛdʒuːl/",
   "86": "/wʊdɪt bi ˈpɒsɪbl tə ɪkˈstɛnd ðə ˈdɛdlaɪn baɪ wʌn ˈbɪznɪs deɪ/",
   "87": "/wi meɪ niːd ə ˈlɪtl mɔːr taɪm fər ðə rɪˈvjuː/",
   "88": "/wi kæn dɪˈlɪvər ðə ˈhaɪɪst ˈpraɪɒrɪti ˈsɛkʃən fɜːrst/",
   "89": "/wi meɪ niːd tə ˈnærəʊ ðə skoʊp tə miːt ðə ˈdɛdlaɪn/",
   "90": "/aɪl tʃɛk wɪð ðə tiːm ænd ɡɛt bæk tə ju/",
-  "91": "/ðɪs ˈʃɛdjuːl meɪ krɪˈeɪt sʌm ˈkwɒlɪti rɪsks/",
+  "91": "/ðɪs ˈskɛdʒuːl meɪ krɪˈeɪt sʌm ˈkwɒlɪti rɪsks/",
   "92": "/ðɪs meɪ əˈfɛkt ðə dɪˈlɪvəri deɪt/",
   "93": "/wʌn ˈɒpʃən ɪz tə splɪt ðə rɪˈvjuː ɪntə tuː ˈsteɪdʒɪz/",
-  "94": "/kʊdʒu kənˈfɜːrm ðə ˈʃɛdjuːl baɪ təˈmɒroʊ/",
+  "94": "/kʊdʒu kənˈfɜːrm ðə ˈskɛdʒuːl baɪ təˈmɒroʊ/",
   "95": "/ðə rɪˈvjuː ɪz ˈteɪkɪŋ ˈlɒŋər ðæn ɪkˈspɛktɪd/",
   "96": "/ðə ˈvɒljuːm ɪz ˈlɑːrdʒər ðæn ɪkˈspɛktɪd/",
-  "97": "/aɪl ʃɛr ðɪ ʌpˈdeɪtɪd ˈʃɛdjuːl ˈɑːftər ðə ˈmiːtɪŋ/",
-  "98": "/ðə meɪn kənˈsɜːrn ɪz ðə taɪt ˈʃɛdjuːl/",
+  "97": "/aɪl ʃɛr ðɪ ʌpˈdeɪtɪd ˈskɛdʒuːl ˈɑːftər ðə ˈmiːtɪŋ/",
+  "98": "/ðə meɪn kənˈsɜːrn ɪz ðə taɪt ˈskɛdʒuːl/",
   "99": "/wi niːd tə ˈklærɪfaɪ ðə praɪˈɒrɪtiz/",
   "100": "/wi niːd ðə ˈklaɪənts ˌkɒnfɜːˈmeɪʃn bɪˈfɔːr ˈmuːvɪŋ ˈfɔːrwərd/",
   "101": "/aɪ doʊnt hæv ðɪ ɪɡˈzækt ˌɪnfərˈmeɪʃn raɪt naʊ/",
@@ -483,11 +503,11 @@ const IPA_DATA = {
   "112": "/maɪ ˌʌndərˈstændɪŋ ɪz ðæt ðər ɑːr tuː meɪn ˈɪʃuːz/",
   "113": "/ðæts ə ɡʊd pɔɪnt/",
   "114": "/lɛts tɛst ɪt ɑːn ə smɔːl skoʊp fɜːrst ænd tʃɛk ðə ˈkwɒlɪti/",
-  "115": "/wi maɪt bi ˈeɪbl tə meɪk ðɪs ˈproʊsɛs mɔːr ɪˈfɪʃnt baɪ ˈjuːzɪŋ eɪ aɪ/",
+  "115": "/wi maɪt bi ˈeɪbl tə meɪk ðɪs ˈprɑːsɛs mɔːr ɪˈfɪʃnt baɪ ˈjuːzɪŋ eɪ aɪ/",
   "116": "/wi kæn juːz məˈʃiːn trænsˈleɪʃn æz ə fɜːrst dræft bʌt ˈhjuːmən rɪˈvjuː ɪz stɪl ˈnɛsəsri/",
   "117": "/eɪ aɪ kæn hɛlp ɪmˈpruːv kənˈsɪstənsi bʌt wi niːd tə tʃɛk ðə ˌtɜːrmɪˈnɒlədʒi ˈkɛrfəli/",
   "118": "/ðɪs taɪp əv ˈkɒntɛnt meɪ bi ˈsuːtəbl fər ɛm tiː piː iː/",
-  "119": "/wi ʃʊd dɪˈfaɪn ðə rɪˈvjuː ˈproʊsɛs bɪˈfɔːr ˈjuːzɪŋ eɪ aɪ ˈaʊtpʊt/",
+  "119": "/wi ʃʊd dɪˈfaɪn ðə rɪˈvjuː ˈprɑːsɛs bɪˈfɔːr ˈjuːzɪŋ eɪ aɪ ˈaʊtpʊt/",
   "120": "/lɛts kəmˈpɛr ðɪ eɪ aɪ ˈaʊtpʊt wɪð ðɪ ɪɡˈzɪstɪŋ staɪl ɡaɪd/",
   "121": "/eɪ aɪ ˈaʊtpʊt meɪ ɪnˈkluːd mɪsˈtrænsleɪʃənz ɔːr ʌnˈnætʃrəl ˈwɜːrdɪŋ/",
   "122": "/ðə ˈfaɪnl ˈkwɒlɪti niːdz tə bi ɪnˈʃʊrd θruː ˈhjuːmən rɪˈvjuː/",
@@ -507,7 +527,7 @@ const IPA_DATA = {
   "136": "/wi meɪd θriː dɪˈsɪʒənz təˈdeɪ/",
   "137": "/ðə nɛkst ˈækʃən ɪz tə tʃɛk ðə ˌtɜːrmɪˈnɒlədʒi wɪð ðɪ ˈɒrɪdʒɪnl ˈɔːθər/",
   "138": "/aɪl teɪk ˈkɛər əv ðɪs tæsk/",
-  "139": "/maɪ ˈækʃən ˈaɪtəm ɪz tə tʃɛk ðə ˈʃɛdjuːl/",
+  "139": "/maɪ ˈækʃən ˈaɪtəm ɪz tə tʃɛk ðə ˈskɛdʒuːl/",
   "140": "/aɪl æsk ðə rɪˈvjuːər tə teɪk ˈkɛər əv ðɪs/",
   "141": "/kʊdʒu kənˈfɜːrm ðə sɔːrs faɪl æz jər ˈækʃən ˈaɪtəm/",
   "142": "/aɪl sɛnd ə ˈfɒloʊ ʌp ˈiːmeɪl ˈɑːftər ðɪs ˈmiːtɪŋ/",
@@ -550,10 +570,12 @@ function updateApiDot(){
 }
 
 function sw(t){
-  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['quiz','list','stats'][i]===t));
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['quiz','list','listen','stats'][i]===t));
   document.querySelectorAll('.screen').forEach(el=>el.classList.toggle('active',el.id===t));
   if(t==='list')renderList();
+  if(t==='listen')renderListen();
   if(t==='stats')renderStats();
+  if(t!=='listen')stopListen();
 }
 
 function dots(m){
@@ -1276,7 +1298,125 @@ function renderStats(){
     </div>`;
 }
 
-/* ===== PHONETICS GENERATION ===== */
+/* ===== LISTENING MODE ===== */
+let listenState={playing:false,idx:0,queue:[],timer:null};
+let listenSettings={cat:'すべて',blank:3,repeat:1};
+
+function renderListen(){
+  const catOpts=CATS.map(c=>`<button class="cat-opt${listenSettings.cat===c?' active':''}" onclick="listenSettings.cat='${c}';renderListen()">${c}</button>`).join('');
+  document.getElementById('listen-body').innerHTML=`
+  <div class="listen-wrap">
+    <div class="listen-settings">
+      <div class="setting-lbl">カテゴリ</div>
+      <div class="cat-grid">${catOpts}</div>
+      <div class="setting-lbl">英語の後のブランク（秒）</div>
+      <div class="seg">${[2,3,5].map(n=>`<button class="seg-btn${listenSettings.blank===n?' active':''}" onclick="listenSettings.blank=${n};renderListen()">${n}秒</button>`).join('')}</div>
+    </div>
+    <div class="listen-progress"><div class="listen-progress-fill" id="listen-prog" style="width:0%"></div></div>
+    <div class="listen-card" id="listen-card">
+      <div class="listen-jp" id="listen-jp">▶ 開始ボタンを押してください</div>
+      <div class="listen-en" id="listen-en"></div>
+      <div class="listen-ipa" id="listen-ipa"></div>
+    </div>
+    <div class="listen-status" id="listen-status">日本語 → ${listenSettings.blank}秒 → 英語 の順で流れます</div>
+    <div class="listen-controls">
+      <button class="listen-btn listen-start" onclick="startListen()">▶ 開始</button>
+      <button class="listen-btn listen-stop" onclick="stopListen();renderListen()">■ 停止</button>
+    </div>
+  </div>`;
+}
+
+function buildListenQueue(){
+  let pool=[...PH];
+  if(listenSettings.cat!=='すべて')pool=pool.filter(p=>p.cat===listenSettings.cat);
+  return pool;
+}
+
+function startListen(){
+  stopListen();
+  listenState.queue=buildListenQueue();
+  listenState.idx=0;
+  listenState.playing=true;
+  playNextListen();
+}
+
+function stopListen(){
+  listenState.playing=false;
+  if(listenState.timer){clearTimeout(listenState.timer);listenState.timer=null;}
+  if(window.speechSynthesis)speechSynthesis.cancel();
+}
+
+function playNextListen(){
+  if(!listenState.playing)return;
+  const q=listenState.queue[listenState.idx];
+  if(!q){
+    // 全部終わった
+    setListenCard('✅ 全フレーズ完了！','','');
+    setListenStatus('完了');
+    listenState.playing=false;
+    return;
+  }
+
+  const pct=Math.round(listenState.idx/listenState.queue.length*100);
+  const prog=document.getElementById('listen-prog');
+  if(prog)prog.style.width=pct+'%';
+  setListenStatus(`${listenState.idx+1} / ${listenState.queue.length}`);
+
+  // 日本語を表示して読み上げ
+  setListenCard(q.jp,'','');
+  speakListen(q.jp,'ja-JP',1.0,()=>{
+    if(!listenState.playing)return;
+    // ブランク
+    listenState.timer=setTimeout(()=>{
+      if(!listenState.playing)return;
+      // 英語を表示して読み上げ
+      setListenCard(q.jp, q.en, IPA_DATA[String(q.id)]||'');
+      speakListen(q.en,'en-US',0.88,()=>{
+        if(!listenState.playing)return;
+        // 英語後のブランク→次へ
+        listenState.timer=setTimeout(()=>{
+          listenState.idx++;
+          playNextListen();
+        }, listenSettings.blank*1000);
+      });
+    }, listenSettings.blank*1000);
+  });
+}
+
+function setListenCard(jp, en, ipa){
+  const jpEl=document.getElementById('listen-jp');
+  const enEl=document.getElementById('listen-en');
+  const ipaEl=document.getElementById('listen-ipa');
+  if(jpEl)jpEl.textContent=jp;
+  if(enEl){enEl.textContent=en;enEl.className='listen-en'+(en?' show':'');}
+  if(ipaEl){ipaEl.textContent=ipa;ipaEl.className='listen-ipa'+(ipa?' show':'');}
+}
+
+function setListenStatus(txt){
+  const el=document.getElementById('listen-status');
+  if(el)el.textContent=txt;
+}
+
+function speakListen(txt, lang, rate, onEnd){
+  if(!window.speechSynthesis){onEnd&&onEnd();return;}
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(txt);
+  u.lang=lang;
+  u.rate=rate;
+  if(lang==='en-US'){
+    const voices=speechSynthesis.getVoices();
+    const preferred=['Microsoft Aria','Microsoft Jenny','Microsoft Zira','Google US English'];
+    const best=preferred.map(n=>voices.find(v=>v.name===n)).find(Boolean)
+      ||voices.find(v=>v.lang==='en-US'&&v.localService)
+      ||voices.find(v=>v.lang==='en-US');
+    if(best)u.voice=best;
+  }
+  u.onend=()=>{onEnd&&onEnd();};
+  u.onerror=()=>{onEnd&&onEnd();};
+  speechSynthesis.speak(u);
+}
+
+
 async function generatePhonetics(){
   if(!apiKey){alert('APIキーが設定されていません');return;}
 
