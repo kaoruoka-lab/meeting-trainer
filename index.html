@@ -123,8 +123,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
 .list-top{padding:12px 14px;display:flex;flex-direction:column;gap:10px;border-bottom:0.5px solid var(--border2);background:var(--bg)}
 .search-input{width:100%;padding:10px 14px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:var(--bg2);font-size:14px;color:var(--text);font-family:inherit;outline:none}
 .search-input:focus{border-color:var(--green)}
-.filter-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
-.filter-row::-webkit-scrollbar{display:none}
+.filter-row{display:flex;gap:6px;flex-wrap:wrap;padding-bottom:2px}
 .chip{flex-shrink:0;padding:6px 12px;border-radius:20px;border:0.5px solid var(--border);font-size:11px;cursor:pointer;background:var(--bg);color:var(--text2);white-space:nowrap;font-family:inherit}
 .chip.active{border-color:var(--text);color:var(--text);font-weight:600}
 .list-count{font-size:12px;color:var(--text2);padding:8px 14px 4px;margin-top:2px}
@@ -142,7 +141,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
 
 /* Listening mode */
 .listen-wrap{padding:16px;display:flex;flex-direction:column;gap:14px}
-.listen-card{background:var(--bg2);border-radius:var(--radius);padding:24px 18px;text-align:center;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.listen-card{background:var(--bg2);border-radius:var(--radius);padding:24px 18px;text-align:center;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;position:relative}
 .listen-no{font-size:11px;color:var(--text2)}
 .listen-jp{font-size:20px;font-weight:500;line-height:1.6;color:var(--text)}
 .listen-en{font-size:16px;font-weight:600;color:var(--green-dark);line-height:1.5;opacity:0;transition:opacity 0.5s}
@@ -152,12 +151,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
 .listen-status{font-size:13px;color:var(--text2);text-align:center}
 .listen-progress{height:3px;background:var(--border2);border-radius:2px;overflow:hidden}
 .listen-progress-fill{height:100%;background:var(--green);border-radius:2px;transition:width 0.3s}
-.listen-controls{display:flex;gap:8px}
+.listen-controls{display:flex;gap:8px;align-items:center;justify-content:center}
 .listen-btn{flex:1;padding:13px;border-radius:var(--radius-sm);border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
 .listen-start{background:var(--green);color:#fff}
 .listen-start:active{background:var(--green-dark)}
 .listen-stop{background:var(--bg2);color:var(--text2);border:0.5px solid var(--border)}
 .listen-stop:active{background:var(--bg3)}
+.listen-nav{display:flex;gap:8px;justify-content:center;align-items:center}
+.listen-nav-btn{width:44px;height:44px;border-radius:50%;border:0.5px solid var(--border);background:var(--bg2);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.listen-nav-btn:active{background:var(--bg3)}
+.listen-main-controls{display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 0}
 .listen-settings{display:flex;flex-direction:column;gap:10px}
 .stats-wrap{padding:14px;display:flex;flex-direction:column;gap:12px;padding-bottom:40px}
 .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
@@ -1306,6 +1309,7 @@ function renderListen(){
   const catOpts=CATS.map(c=>`<button class="cat-opt${listenSettings.cat===c?' active':''}" onclick="listenSettings.cat='${c}';renderListen()">${c}</button>`).join('');
   const isPlaying=listenState.playing&&!listenState.paused;
   const isPaused=listenState.paused;
+  const q=listenState.queue[listenState.idx];
   document.getElementById('listen-body').innerHTML=`
   <div class="listen-wrap">
     <div class="listen-settings">
@@ -1316,16 +1320,20 @@ function renderListen(){
     </div>
     <div class="listen-progress"><div class="listen-progress-fill" id="listen-prog" style="width:${listenState.queue.length?Math.round(listenState.idx/listenState.queue.length*100):0}%"></div></div>
     <div class="listen-card" id="listen-card">
-      <div class="listen-jp" id="listen-jp">${isPaused?'⏸ 一時停止中':'▶ 開始ボタンを押してください'}</div>
-      <div class="listen-en ${isPaused?'show':''}" id="listen-en"></div>
-      <div class="listen-ipa ${isPaused?'show':''}" id="listen-ipa"></div>
+      <div style="font-size:11px;color:var(--text2)" id="listen-no">${listenState.queue.length?`${listenState.idx+1} / ${listenState.queue.length}`:''}</div>
+      <div class="listen-jp" id="listen-jp">${isPaused&&q?q.jp:'▶ 開始ボタンを押してください'}</div>
+      <div class="listen-en ${isPaused&&q?'show':''}" id="listen-en">${isPaused&&q?q.en:''}</div>
+      <div class="listen-ipa ${isPaused&&q?'show':''}" id="listen-ipa">${isPaused&&q?(IPA_DATA[String(q.id)]||''):''}</div>
+      <div class="listen-main-controls">
+        <button class="listen-nav-btn" onclick="listenPrev()" title="前へ">◀</button>
+        <button onclick="${isPlaying?'pauseListen()':'startListen()'}" style="width:56px;height:56px;border-radius:50%;border:none;background:var(--green);color:#fff;font-size:22px;cursor:pointer">
+          ${isPlaying?'⏸':'▶'}
+        </button>
+        <button class="listen-nav-btn" onclick="listenNext()" title="次へ">▶</button>
+      </div>
     </div>
-    <div class="listen-status" id="listen-status">${isPaused?`${listenState.idx}/${listenState.queue.length} 一時停止中`:`日本語 → ${listenSettings.blank}秒 → 英語 の順で流れます`}</div>
-    <div class="listen-controls">
-      <button class="listen-btn listen-start" onclick="startListen()" ${isPlaying?'disabled':''}>▶ ${isPaused?'再開':'開始'}</button>
-      <button class="listen-btn listen-stop" style="background:#E6F1FB;color:#0C447C;border:0.5px solid #0C447C" onclick="pauseListen()" ${!isPlaying?'disabled':''}>⏸ 一時停止</button>
-      <button class="listen-btn listen-stop" onclick="stopListen();renderListen()">■ 停止</button>
-    </div>
+    <div class="listen-status" id="listen-status">${isPaused?`${listenState.idx+1}/${listenState.queue.length} 一時停止中`:`日本語 → ${listenSettings.blank}秒 → 英語 の順で流れます`}</div>
+    <button class="listen-btn listen-stop" onclick="stopListen();renderListen()" style="margin-top:0">■ 停止してリセット</button>
   </div>`;
 }
 
@@ -1337,7 +1345,6 @@ function buildListenQueue(){
 
 function startListen(){
   if(listenState.paused){
-    // 再開
     listenState.paused=false;
     listenState.playing=true;
     renderListen();
@@ -1349,6 +1356,7 @@ function startListen(){
   listenState.idx=0;
   listenState.playing=true;
   listenState.paused=false;
+  startWakeLock();
   renderListen();
   playNextListen();
 }
@@ -1367,6 +1375,7 @@ function stopListen(){
   listenState.paused=false;
   if(listenState.timer){clearTimeout(listenState.timer);listenState.timer=null;}
   if(window.speechSynthesis)speechSynthesis.cancel();
+  stopWakeLock();
 }
 
 function playNextListen(){
@@ -1407,7 +1416,62 @@ function playNextListen(){
   });
 }
 
-function setListenCard(jp, en, ipa){
+function listenPrev(){
+  if(listenState.idx>0){
+    pauseListen();
+    listenState.idx--;
+    listenState.paused=true;
+    listenState.playing=false;
+    renderListen();
+    startListen();
+  }
+}
+
+function listenNext(){
+  if(listenState.idx<listenState.queue.length-1){
+    pauseListen();
+    listenState.idx++;
+    listenState.paused=false;
+    listenState.playing=true;
+    playNextListen();
+    updateListenCard();
+  }
+}
+
+function updateListenCard(){
+  const q=listenState.queue[listenState.idx];
+  if(!q)return;
+  const prog=document.getElementById('listen-prog');
+  if(prog)prog.style.width=Math.round(listenState.idx/listenState.queue.length*100)+'%';
+  const noEl=document.getElementById('listen-no');
+  if(noEl)noEl.textContent=`${listenState.idx+1} / ${listenState.queue.length}`;
+}
+
+// スクリーンオフ対策：Web Audio APIで無音を流し続ける
+let wakeLockAudio=null;
+function startWakeLock(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const buf=ctx.createBuffer(1,1,22050);
+    const src=ctx.createBufferSource();
+    src.buffer=buf;
+    src.loop=true;
+    src.connect(ctx.destination);
+    src.start();
+    wakeLockAudio={ctx,src};
+  }catch(e){}
+  // Screen Wake Lock API（対応ブラウザのみ）
+  if(navigator.wakeLock){
+    navigator.wakeLock.request('screen').catch(()=>{});
+  }
+}
+
+function stopWakeLock(){
+  if(wakeLockAudio){
+    try{wakeLockAudio.src.stop();wakeLockAudio.ctx.close();}catch(e){}
+    wakeLockAudio=null;
+  }
+}
   const jpEl=document.getElementById('listen-jp');
   const enEl=document.getElementById('listen-en');
   const ipaEl=document.getElementById('listen-ipa');
