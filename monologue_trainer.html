@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="独り言英語">
+<title>独り言英語トレーナー</title>
+<style>
+:root{
+  --bg:#0f1117;--bg2:#1a1d27;--bg3:#252836;
+  --text:#f0f0f0;--text2:#8b8fa8;
+  --border:#2e3149;
+  --green:#00d4aa;--green-dark:#00a888;--green-bg:rgba(0,212,170,0.12);
+  --red:#ff4f6d;--red-bg:rgba(255,79,109,0.12);
+  --blue:#4f9dff;--blue-bg:rgba(79,157,255,0.12);
+  --amber:#ffb347;--amber-bg:rgba(255,179,71,0.12);
+  --radius:16px;--radius-sm:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center}
+.app{width:100%;max-width:440px;min-height:100vh;display:flex;flex-direction:column;background:var(--bg)}
+
+/* Header */
+.header{padding:16px 20px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid var(--border)}
+.header h1{font-size:16px;font-weight:700;letter-spacing:-0.3px}
+.header h1 span{color:var(--green)}
+.api-dot{width:8px;height:8px;border-radius:50%;background:var(--border)}
+.api-dot.ok{background:var(--green);box-shadow:0 0 6px var(--green)}
+
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;gap:0;overflow-y:auto;padding:0 0 40px}
+
+/* Setup */
+.setup-wrap{padding:24px 20px;display:flex;flex-direction:column;gap:16px}
+.setup-title{font-size:18px;font-weight:700}
+.setup-title span{color:var(--green)}
+.setup-desc{font-size:13px;color:var(--text2);line-height:1.7}
+.setup-lbl{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;letter-spacing:0.04em}
+.setup-input{width:100%;padding:12px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg2);font-size:13px;color:var(--text);font-family:monospace;outline:none}
+.setup-input:focus{border-color:var(--green)}
+.setup-btn{width:100%;padding:14px;border-radius:var(--radius);border:none;background:var(--green);color:#000;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-0.2px}
+.setup-btn:active{background:var(--green-dark)}
+.setup-note{font-size:11px;color:var(--text2);line-height:1.7;padding:12px 14px;background:var(--bg2);border-radius:var(--radius-sm);border:1px solid var(--border)}
+
+/* Record area */
+.record-wrap{padding:20px;display:flex;flex-direction:column;gap:16px}
+.rec-hint{font-size:12px;color:var(--text2);text-align:center;padding:4px 0}
+
+.mic-area{display:flex;flex-direction:column;align-items:center;gap:14px;padding:20px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border)}
+.mic-btn{width:80px;height:80px;border-radius:50%;border:none;background:var(--green);color:#000;font-size:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;box-shadow:0 0 0 0 rgba(0,212,170,0.4)}
+.mic-btn.recording{background:var(--red);box-shadow:0 0 0 12px rgba(255,79,109,0.2);animation:pulse 1.5s infinite}
+.mic-btn:active{transform:scale(0.95)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,79,109,0.4)}50%{box-shadow:0 0 0 16px rgba(255,79,109,0)}}
+
+.rec-status{font-size:13px;color:var(--text2);text-align:center;min-height:20px}
+.rec-status.recording{color:var(--red)}
+.silence-bar-wrap{width:100%;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.silence-bar{height:100%;background:var(--green);border-radius:2px;width:0%;transition:width 0.1s}
+
+.viz{display:flex;align-items:center;justify-content:center;gap:3px;height:32px}
+.viz-bar{width:3px;height:4px;background:var(--border);border-radius:2px;transition:height 0.08s}
+.viz-bar.active{background:var(--red)}
+
+/* Result cards */
+.results{display:flex;flex-direction:column;gap:10px;padding:0 20px}
+
+.result-card{border-radius:var(--radius);border:1px solid var(--border);background:var(--bg2);overflow:hidden}
+.card-header{padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
+.card-icon{font-size:14px}
+.card-title{font-size:11px;font-weight:700;letter-spacing:0.06em;color:var(--text2)}
+.card-body{padding:12px 14px}
+
+.transcribed-text{font-size:15px;font-weight:500;line-height:1.6;color:var(--text)}
+.jp-text{font-size:14px;color:var(--text2);line-height:1.6}
+.better-text{font-size:15px;font-weight:600;line-height:1.6;color:var(--green)}
+.advice-text{font-size:13px;color:var(--text2);line-height:1.7}
+.error-text{font-size:13px;line-height:1.6}
+.error-item{padding:6px 0;border-bottom:1px solid var(--border);color:var(--text2)}
+.error-item:last-child{border-bottom:none}
+.error-item strong{color:var(--red)}
+.error-fix{color:var(--green)}
+
+.speak-btn{margin-top:10px;padding:8px 14px;border-radius:var(--radius-sm);border:1px solid var(--green);background:var(--green-bg);color:var(--green);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+.speak-btn:active{background:rgba(0,212,170,0.2)}
+
+/* Analyzing */
+.analyzing{display:flex;align-items:center;gap:12px;padding:20px;font-size:13px;color:var(--text2)}
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* History */
+.history-wrap{padding:20px;display:flex;flex-direction:column;gap:10px}
+.history-title{font-size:12px;font-weight:700;color:var(--text2);letter-spacing:0.06em}
+.history-item{padding:10px 14px;background:var(--bg2);border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer;font-size:13px;color:var(--text2);line-height:1.5}
+.history-item:hover{border-color:var(--green)}
+.history-item strong{color:var(--text);display:block;margin-bottom:2px}
+
+/* Settings modal */
+.settings-btn{padding:6px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit}
+.settings-btn:active{background:var(--bg3)}
+
+/* Score badge */
+.score-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.score-great{background:var(--green-bg);color:var(--green)}
+.score-good{background:var(--blue-bg);color:var(--blue)}
+.score-fair{background:var(--amber-bg);color:var(--amber)}
+.score-poor{background:var(--red-bg);color:var(--red)}
+
+.new-btn{width:100%;padding:13px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:4px}
+.new-btn:active{background:var(--bg3)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>🗣 独り言<span>英語</span>トレーナー</h1>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="settings-btn" onclick="showSettings()">⚙</button>
+      <div class="api-dot" id="api-dot"></div>
+    </div>
+  </div>
+  <div class="main" id="main"></div>
+</div>
+
+<script>
+let anthropicKey='';
+let openaiKey='';
+let mediaRecorder=null;
+let audioChunks=[];
+let audioContext=null;
+let analyser=null;
+let micStream=null;
+let isRecording=false;
+let speechDetected=false;
+let vizRaf=null;
+let silenceTimer=null;
+let history=[];
+
+const SILENCE_MS=2500;
+const SILENCE_THRESHOLD=10;
+
+function loadData(){
+  try{
+    const ak=localStorage.getItem('mono_anthropic');
+    if(ak){anthropicKey=ak;}
+    const ok=localStorage.getItem('mono_openai');
+    if(ok){openaiKey=ok;}
+    const h=localStorage.getItem('mono_history');
+    if(h)history=JSON.parse(h);
+  }catch(e){}
+}
+
+function saveHistory(){
+  try{localStorage.setItem('mono_history',JSON.stringify(history.slice(0,20)));}catch(e){}
+}
+
+function updateDot(){
+  const d=document.getElementById('api-dot');
+  if(d)d.className='api-dot'+(anthropicKey?' ok':'');
+}
+
+/* ===== SETUP ===== */
+function showSetup(){
+  const akSaved=anthropicKey?'✅ 保存済み':'';
+  const okSaved=openaiKey?'✅ 保存済み（TTS高品質化）':'';
+  document.getElementById('main').innerHTML=`
+  <div class="setup-wrap">
+    <div class="setup-title">🗣 独り言<span>英語</span>トレーナー</div>
+    <div class="setup-desc">英語で自由に話すと、日本語訳・文法チェック・より自然な表現をフィードバックします。</div>
+    <div>
+      <div class="setup-lbl">Anthropic APIキー ${akSaved?`<span style="color:var(--green);font-weight:400">${akSaved}</span>`:''}</div>
+      <input class="setup-input" id="ak-input" type="password" placeholder="${anthropicKey?'変更しない場合は空白でOK':'sk-ant-api03-...'}" autocomplete="new-password">
+    </div>
+    <div>
+      <div class="setup-lbl">OpenAI APIキー ${okSaved?`<span style="color:var(--green);font-weight:400">${okSaved}</span>`:''}<span style="color:var(--text2);font-weight:400">（任意・高品質TTS）</span></div>
+      <input class="setup-input" id="ok-input" type="password" placeholder="${openaiKey?'変更しない場合は空白でOK':'sk-proj-...'}" autocomplete="new-password">
+    </div>
+    <button class="setup-btn" onclick="saveSetup()">保存して始める</button>
+    <div class="setup-note">⚠️ キーはこのデバイスにのみ保存されます<br>Anthropic: console.anthropic.com → API Keys<br>OpenAI: platform.openai.com → API keys（任意）</div>
+  </div>`;
+}
+
+function saveSetup(){
+  const ak=(document.getElementById('ak-input').value||'').trim();
+  const ok=(document.getElementById('ok-input').value||'').trim();
+  if(ak){
+    if(!ak.startsWith('sk-ant-')){alert('AnthropicキーはSK-ant-で始まります');return;}
+    anthropicKey=ak;
+    localStorage.setItem('mono_anthropic',ak);
+  }
+  if(!anthropicKey){alert('AnthropicのAPIキーを入力してください');return;}
+  if(ok&&ok.startsWith('sk-')){
+    openaiKey=ok;
+    localStorage.setItem('mono_openai',ok);
+  }
+  updateDot();
+  showRecord();
+}
+
+function showSettings(){
+  showSetup();
+}
+
+/* ===== RECORD ===== */
+function showRecord(){
+  document.getElementById('main').innerHTML=`
+  <div class="record-wrap">
+    <div class="rec-hint">マイクボタンを押して英語で話してください<br>話し終わると自動で分析します</div>
+    <div class="mic-area">
+      <div class="viz" id="viz">${Array.from({length:16},()=>'<div class="viz-bar"></div>').join('')}</div>
+      <button class="mic-btn" id="mic-btn" onclick="toggleRecord()">🎤</button>
+      <div class="rec-status" id="rec-status">タップして開始</div>
+      <div class="silence-bar-wrap"><div class="silence-bar" id="silence-bar"></div></div>
+    </div>
+    ${history.length>0?`
+    <div class="history-wrap">
+      <div class="history-title">最近の練習</div>
+      ${history.slice(0,3).map((h,i)=>`
+      <div class="history-item" onclick="showResult(${i})">
+        <strong>${h.transcribed}</strong>
+        ${h.japanese}
+      </div>`).join('')}
+    </div>`:''}
+  </div>`;
+}
+
+function showResult(idx){
+  const h=history[idx];
+  if(!h)return;
+  displayResult(h);
+}
+
+async function toggleRecord(){
+  if(isRecording){
+    stopRecording();
+  } else {
+    await startRecording();
+  }
+}
+
+async function startRecording(){
+  try{
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+    audioContext=new(window.AudioContext||window.webkitAudioContext)();
+    analyser=audioContext.createAnalyser();
+    analyser.fftSize=256;
+    const src=audioContext.createMediaStreamSource(micStream);
+    src.connect(analyser);
+
+    audioChunks=[];
+    const mimeType=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
+    mediaRecorder=new MediaRecorder(micStream,{mimeType});
+    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
+    mediaRecorder.onstop=()=>processAudio();
+    mediaRecorder.start(100);
+    isRecording=true;
+    speechDetected=false;
+
+    const btn=document.getElementById('mic-btn');
+    if(btn){btn.classList.add('recording');btn.textContent='⏹';}
+    setStatus('話してください...','recording');
+    startViz();
+  }catch(e){
+    setStatus('マイクにアクセスできません','');
+  }
+}
+
+function stopRecording(){
+  if(!isRecording)return;
+  isRecording=false;
+  cancelAnimationFrame(vizRaf);
+  if(silenceTimer){clearTimeout(silenceTimer);silenceTimer=null;}
+  if(mediaRecorder&&mediaRecorder.state!=='inactive')mediaRecorder.stop();
+  if(micStream)micStream.getTracks().forEach(t=>t.stop());
+  if(audioContext&&audioContext.state!=='closed')audioContext.close();
+  const btn=document.getElementById('mic-btn');
+  if(btn){btn.classList.remove('recording');btn.textContent='🎤';}
+  setStatus('分析中...','');
+}
+
+function setStatus(txt,cls){
+  const el=document.getElementById('rec-status');
+  if(el){el.textContent=txt;el.className='rec-status'+(cls?' '+cls:'');}
+}
+
+function startViz(){
+  const buf=new Uint8Array(analyser.frequencyBinCount);
+  let silenceStart=null;
+
+  function tick(){
+    if(!isRecording){cancelAnimationFrame(vizRaf);return;}
+    analyser.getByteFrequencyData(buf);
+    const avg=buf.reduce((s,v)=>s+v,0)/buf.length;
+
+    const bars=document.querySelectorAll('.viz-bar');
+    bars.forEach((b,i)=>{
+      b.style.height=Math.max(3,Math.min(28,buf[i*2]/5))+'px';
+      b.classList.toggle('active',avg>SILENCE_THRESHOLD);
+    });
+
+    if(!speechDetected){
+      if(avg>SILENCE_THRESHOLD){
+        speechDetected=true;
+        setStatus('録音中... 🔴','recording');
+        silenceStart=null;
+      }
+    } else {
+      if(avg<SILENCE_THRESHOLD){
+        if(!silenceStart)silenceStart=Date.now();
+        const elapsed=Date.now()-silenceStart;
+        const pct=Math.min(100,elapsed/SILENCE_MS*100);
+        const sb=document.getElementById('silence-bar');
+        if(sb)sb.style.width=pct+'%';
+        if(elapsed>=SILENCE_MS){stopRecording();return;}
+      } else {
+        silenceStart=null;
+        const sb=document.getElementById('silence-bar');
+        if(sb)sb.style.width='0%';
+      }
+    }
+    vizRaf=requestAnimationFrame(tick);
+  }
+  vizRaf=requestAnimationFrame(tick);
+}
+
+/* ===== PROCESS ===== */
+async function processAudio(){
+  if(!speechDetected){showRecord();return;}
+
+  document.getElementById('main').innerHTML=`
+  <div class="analyzing"><div class="spinner"></div>AIが分析中...</div>`;
+
+  const blob=new Blob(audioChunks,{type:'audio/webm'});
+  let transcript='';
+
+  // STT
+  if(openaiKey){
+    try{
+      const fd=new FormData();
+      fd.append('file',blob,'audio.webm');
+      fd.append('model','whisper-1');
+      fd.append('language','en');
+      const r=await fetch('https://api.openai.com/v1/audio/transcriptions',{
+        method:'POST',
+        headers:{Authorization:`Bearer ${openaiKey}`},
+        body:fd
+      });
+      const d=await r.json();
+      transcript=(d.text||'').trim();
+    }catch(e){}
+  }
+
+  if(!transcript){
+    // Web Speech API fallback
+    transcript=await sttFallback(blob);
+  }
+
+  if(!transcript){
+    document.getElementById('main').innerHTML=`
+    <div class="record-wrap">
+      <div class="mic-area" style="padding:20px;text-align:center;color:var(--text2)">音声を認識できませんでした</div>
+      <button class="new-btn" onclick="showRecord()">もう一度</button>
+    </div>`;
+    return;
+  }
+
+  await analyzeText(transcript);
+}
+
+function sttFallback(blob){
+  return new Promise(resolve=>{
+    if(!window.SpeechRecognition&&!window.webkitSpeechRecognition){resolve('');return;}
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    const sr=new SR();
+    sr.lang='en-US';sr.continuous=false;sr.interimResults=false;
+    sr.onresult=e=>resolve(e.results[0][0].transcript.trim());
+    sr.onerror=()=>resolve('');
+    sr.onend=()=>resolve('');
+    setTimeout(()=>resolve(''),8000);
+    try{sr.start();}catch(e){resolve('');}
+  });
+}
+
+/* ===== ANALYZE ===== */
+async function analyzeText(transcript){
+  const prompt=`あなたは英語コーチです。ユーザーが英語で独り言を言いました。
+
+ユーザーの英語: 「${transcript}」
+
+以下のJSON形式のみで返してください（他のテキスト不要）:
+{
+  "transcribed": "${transcript}",
+  "japanese": "日本語訳（何を言おうとしたか自然な日本語で）",
+  "score": 4,
+  "errors": [
+    {"original": "間違っている部分", "fix": "正しい表現", "reason": "理由（日本語で短く）"}
+  ],
+  "better": "より自然でネイティブらしい英語表現（文全体）",
+  "better_reason": "なぜこの表現の方が良いか（日本語で1文）",
+  "tip": "発音・表現のワンポイント（日本語で1文・短く）"
+}
+
+採点基準（1〜5）:
+5=ネイティブに近い自然な英語
+4=十分通じる・軽微な問題のみ
+3=意味は通じるが文法や表現に問題あり
+2=伝わりにくい・主要な問題あり
+1=ほぼ通じない
+
+errorsは実際に問題がある場合のみ。問題なければ空配列[]。
+betterはユーザーの意図を活かしつつより自然な表現に。大きく変えすぎない。`;
+
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':anthropicKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:prompt}]})
+    });
+    const data=await res.json();
+    const text=data.content.map(c=>c.text||'').join('').replace(/```json|```/g,'').trim();
+    const result=JSON.parse(text);
+
+    // 履歴に保存
+    history.unshift(result);
+    saveHistory();
+
+    displayResult(result);
+  }catch(e){
+    document.getElementById('main').innerHTML=`
+    <div class="record-wrap">
+      <div style="padding:20px;color:var(--red);font-size:13px">エラーが発生しました: ${e.message}</div>
+      <button class="new-btn" onclick="showRecord()">もう一度</button>
+    </div>`;
+  }
+}
+
+/* ===== DISPLAY ===== */
+function displayResult(result){
+  const score=result.score||3;
+  const scoreClass=score>=5?'score-great':score>=4?'score-good':score>=3?'score-fair':'score-poor';
+  const scoreLabel=score>=5?'完璧':score>=4?'良い':score>=3?'普通':'要練習';
+
+  const errorsHTML=(result.errors||[]).filter(e=>e.original).map(e=>`
+    <div class="error-item">
+      <strong>${e.original}</strong> → <span class="error-fix">${e.fix}</span><br>
+      <span style="font-size:12px">${e.reason}</span>
+    </div>`).join('');
+
+  document.getElementById('main').innerHTML=`
+  <div class="results">
+    <div class="result-card">
+      <div class="card-header">
+        <span class="card-icon">🎤</span>
+        <span class="card-title">あなたの英語</span>
+        <span class="score-badge ${scoreClass}" style="margin-left:auto">${score}/5 ${scoreLabel}</span>
+      </div>
+      <div class="card-body">
+        <div class="transcribed-text">${result.transcribed}</div>
+        <div class="jp-text" style="margin-top:6px">→ ${result.japanese}</div>
+      </div>
+    </div>
+
+    ${errorsHTML?`
+    <div class="result-card">
+      <div class="card-header">
+        <span class="card-icon">📝</span>
+        <span class="card-title">文法・表現チェック</span>
+      </div>
+      <div class="card-body">
+        <div class="error-text">${errorsHTML}</div>
+      </div>
+    </div>`:'<div class="result-card"><div class="card-header"><span class="card-icon">✅</span><span class="card-title">文法チェック</span></div><div class="card-body"><div style="color:var(--green);font-size:13px">文法上の問題はありません！</div></div></div>'}
+
+    <div class="result-card">
+      <div class="card-header">
+        <span class="card-icon">💬</span>
+        <span class="card-title">より自然な表現</span>
+      </div>
+      <div class="card-body">
+        <div class="better-text">${result.better}</div>
+        <div class="jp-text" style="margin-top:6px">${result.better_reason||''}</div>
+        <button class="speak-btn" onclick="speakBetter('${(result.better||'').replace(/'/g,"\\'")}')">
+          ▶ 読み上げ
+        </button>
+      </div>
+    </div>
+
+    ${result.tip?`
+    <div class="result-card">
+      <div class="card-header">
+        <span class="card-icon">🔑</span>
+        <span class="card-title">ワンポイント</span>
+      </div>
+      <div class="card-body">
+        <div class="advice-text">${result.tip}</div>
+      </div>
+    </div>`:''}
+
+    <button class="new-btn" onclick="showRecord()">🎤 もう一度話す</button>
+  </div>`;
+}
+
+/* ===== TTS ===== */
+async function speakBetter(txt){
+  if(!txt)return;
+
+  if(openaiKey){
+    // OpenAI TTS（自然な音声）
+    try{
+      const res=await fetch('https://api.openai.com/v1/audio/speech',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${openaiKey}`},
+        body:JSON.stringify({model:'tts-1',voice:'nova',input:txt,speed:0.9})
+      });
+      const blob=await res.blob();
+      const url=URL.createObjectURL(blob);
+      const audio=new Audio(url);
+      audio.play();
+      return;
+    }catch(e){}
+  }
+
+  // フォールバック：ブラウザTTS
+  if(!window.speechSynthesis)return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(txt);
+  u.lang='en-US';u.rate=0.88;
+  const voices=speechSynthesis.getVoices();
+  const preferred=['Microsoft Aria','Microsoft Jenny','Google US English'];
+  const best=preferred.map(n=>voices.find(v=>v.name===n)).find(Boolean)||voices.find(v=>v.lang==='en-US');
+  if(best)u.voice=best;
+  speechSynthesis.speak(u);
+}
+
+/* ===== INIT ===== */
+loadData();
+updateDot();
+if(anthropicKey){showRecord();}else{showSetup();}
+</script>
+</body>
+</html>
