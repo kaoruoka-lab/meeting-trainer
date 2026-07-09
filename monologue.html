@@ -109,6 +109,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 
 .new-btn{width:100%;padding:13px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:4px}
 .new-btn:active{background:var(--bg3)}
+
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg)}
+.tab{flex:1;padding:11px 0;font-size:13px;text-align:center;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;font-weight:500}
+.tab.active{color:var(--green);border-bottom-color:var(--green)}
+
+/* History */
+.history-list{padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+.history-card{background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden}
+.history-card-header{padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.history-date{font-size:11px;color:var(--text2)}
+.history-card-body{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.history-yours{font-size:13px;color:var(--text2);line-height:1.5}
+.history-yours strong{color:var(--text);font-size:14px;display:block;margin-bottom:2px}
+.history-better{font-size:13px;color:var(--green);line-height:1.5}
+.history-better strong{font-size:11px;color:var(--text2);font-weight:600;letter-spacing:0.04em;display:block;margin-bottom:2px}
+.history-jp{font-size:12px;color:var(--text2);line-height:1.5}
+.history-speak{padding:5px 10px;border-radius:var(--radius-sm);border:1px solid var(--green);background:var(--green-bg);color:var(--green);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
+.history-empty{text-align:center;padding:40px 20px;color:var(--text2);font-size:14px}
 </style>
 </head>
 <body>
@@ -116,9 +135,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
   <div class="header">
     <h1>🗣 独り言<span>英語</span>トレーナー</h1>
     <div style="display:flex;align-items:center;gap:8px">
-      <button class="settings-btn" onclick="showSettings()">⚙</button>
+      <button class="settings-btn" onclick="showSetup();document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'))">⚙</button>
       <div class="api-dot" id="api-dot"></div>
     </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" id="tab-record" onclick="swTab('record')">練習</div>
+    <div class="tab" id="tab-history" onclick="swTab('history')">履歴</div>
   </div>
   <div class="main" id="main"></div>
 </div>
@@ -198,8 +221,85 @@ function saveSetup(){
   showRecord();
 }
 
-function showSettings(){
-  showSetup();
+function exportCSV(){
+  if(history.length===0){alert('履歴がありません');return;}
+  const escape=v=>`"${(v||'').replace(/"/g,'""')}"`;
+  const header=['日時','あなたの英語','日本語訳','より良い表現','スコア'];
+  const rows=history.map(h=>[
+    h.date?new Date(h.date).toLocaleString('ja-JP'):'',
+    h.transcribed||'',
+    h.japanese||'',
+    h.better||'',
+    h.score||''
+  ].map(escape).join(','));
+  const csv='\uFEFF'+[header.join(','),...rows].join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`英語独り言履歴_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function swTab(t){
+  document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
+  const tab=document.getElementById('tab-'+t);
+  if(tab)tab.classList.add('active');
+  if(t==='record')showRecord();
+  if(t==='history')showHistory();
+}
+
+function showHistory(){
+  if(history.length===0){
+    document.getElementById('main').innerHTML=`
+    <div class="history-empty">
+      まだ練習履歴がありません<br>
+      <span style="font-size:12px;margin-top:8px;display:block">練習タブから英語で話してみましょう</span>
+    </div>`;
+    return;
+  }
+
+  const items=history.map((h,i)=>{
+    const score=h.score||3;
+    const scoreClass=score>=5?'score-great':score>=4?'score-good':score>=3?'score-fair':'score-poor';
+    const scoreLabel=score>=5?'完璧':score>=4?'良い':score>=3?'普通':'要練習';
+    const date=h.date?new Date(h.date).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+    return `
+    <div class="history-card">
+      <div class="history-card-header">
+        <span class="history-date">${date}</span>
+        <span class="score-badge ${scoreClass}">${score}/5 ${scoreLabel}</span>
+      </div>
+      <div class="history-card-body">
+        <div class="history-yours">
+          <strong>あなたの英語</strong>
+          ${h.transcribed}
+        </div>
+        ${h.japanese?`<div class="history-jp">→ ${h.japanese}</div>`:''}
+        <div style="height:0.5px;background:var(--border)"></div>
+        <div class="history-better">
+          <strong>より良い表現</strong>
+          ${h.better}
+        </div>
+        <div style="display:flex;justify-content:flex-end">
+          <button class="history-speak" onclick="speakBetter('${(h.better||'').replace(/'/g,"\\'")}')">▶ 読み上げ</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('main').innerHTML=`
+  <div class="history-list">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <span style="font-size:12px;color:var(--text2)">${history.length}件の練習記録</span>
+      <div style="display:flex;gap:6px">
+        <button onclick="exportCSV()" style="padding:4px 10px;border-radius:var(--radius-sm);border:1px solid var(--green);background:var(--green-bg);color:var(--green);font-size:11px;font-weight:600;cursor:pointer">CSV出力</button>
+        <button onclick="if(confirm('履歴をすべて削除しますか？')){history=[];saveHistory();showHistory();}" style="padding:4px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:none;color:var(--text2);font-size:11px;cursor:pointer">クリア</button>
+      </div>
+    </div>
+    ${items}
+  </div>`;
 }
 
 /* ===== RECORD ===== */
@@ -215,12 +315,18 @@ function showRecord(){
     </div>
     ${history.length>0?`
     <div class="history-wrap">
-      <div class="history-title">最近の練習</div>
-      ${history.slice(0,3).map((h,i)=>`
-      <div class="history-item" onclick="showResult(${i})">
-        <strong>${h.transcribed}</strong>
-        ${h.japanese}
-      </div>`).join('')}
+      <div class="history-title">最近の練習 <span style="font-weight:400;color:var(--text2);cursor:pointer" onclick="swTab('history')">すべて見る →</span></div>
+      ${history.slice(0,3).map((h,i)=>{
+        const score=h.score||3;
+        const scoreClass=score>=5?'score-great':score>=4?'score-good':score>=3?'score-fair':'score-poor';
+        return `<div class="history-item" onclick="swTab('history')">
+          <strong>${h.transcribed}</strong>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+            <span>${h.japanese||''}</span>
+            <span class="score-badge ${scoreClass}" style="font-size:10px">${score}/5</span>
+          </div>
+        </div>`;
+      }).join('')}
     </div>`:''}
   </div>`;
 }
@@ -426,7 +532,8 @@ betterはユーザーの意図を活かしつつより自然な表現に。大�
     const text=data.content.map(c=>c.text||'').join('').replace(/```json|```/g,'').trim();
     const result=JSON.parse(text);
 
-    // 履歴に保存
+    // 履歴に保存（日時付き）
+    result.date=new Date().toISOString();
     history.unshift(result);
     saveHistory();
 
@@ -502,7 +609,8 @@ function displayResult(result){
       </div>
     </div>`:''}
 
-    <button class="new-btn" onclick="showRecord()">🎤 もう一度話す</button>
+    <button class="new-btn" onclick="showRecord();swTab('record')">🎤 もう一度話す</button>
+    <button class="new-btn" style="margin-top:8px;color:var(--green);border-color:var(--green)" onclick="swTab('history')">📋 履歴を見る</button>
   </div>`;
 }
 
