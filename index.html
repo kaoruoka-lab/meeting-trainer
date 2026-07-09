@@ -1306,7 +1306,7 @@ let listenState={playing:false,paused:false,idx:0,queue:[],timer:null};
 let listenSettings={cat:'すべて',blank:3,repeat:1};
 
 function renderListen(){
-  const catOpts=CATS.map(c=>`<button class="cat-opt${listenSettings.cat===c?' active':''}" onclick="listenSettings.cat='${c}';renderListen()">${c}</button>`).join('');
+  const catOpts=CATS.map(c=>`<button class="cat-opt${listenSettings.cat===c?' active':''}" onclick="changListenCat('${c}')">${c}</button>`).join('');
   const isPlaying=listenState.playing&&!listenState.paused;
   const isPaused=listenState.paused;
   const q=listenState.queue[listenState.idx];
@@ -1315,15 +1315,15 @@ function renderListen(){
     <div class="listen-settings">
       <div class="setting-lbl">カテゴリ</div>
       <div class="cat-grid">${catOpts}</div>
-      <div class="setting-lbl">英語の後のブランク（秒）</div>
-      <div class="seg">${[2,3,5].map(n=>`<button class="seg-btn${listenSettings.blank===n?' active':''}" onclick="listenSettings.blank=${n};renderListen()">${n}秒</button>`).join('')}</div>
+      <div class="setting-lbl">ブランク（日本語の後・英語の後 共通）</div>
+      <div class="seg">${[2,3,5].map(n=>`<button class="seg-btn${listenSettings.blank===n?' active':''}" onclick="listenSettings.blank=${n};updateListenSettingsUI()">${n}秒</button>`).join('')}</div>
     </div>
     <div class="listen-progress"><div class="listen-progress-fill" id="listen-prog" style="width:${listenState.queue.length?Math.round(listenState.idx/listenState.queue.length*100):0}%"></div></div>
     <div class="listen-card" id="listen-card">
       <div style="font-size:11px;color:var(--text2)" id="listen-no">${listenState.queue.length?`${listenState.idx+1} / ${listenState.queue.length}`:''}</div>
-      <div class="listen-jp" id="listen-jp">${isPaused&&q?q.jp:'▶ 開始ボタンを押してください'}</div>
-      <div class="listen-en ${isPaused&&q?'show':''}" id="listen-en">${isPaused&&q?q.en:''}</div>
-      <div class="listen-ipa ${isPaused&&q?'show':''}" id="listen-ipa">${isPaused&&q?(IPA_DATA[String(q.id)]||''):''}</div>
+      <div class="listen-jp" id="listen-jp">${q?q.jp:'▶ 開始ボタンを押してください'}</div>
+      <div class="listen-en ${q&&listenState.paused?'show':''}" id="listen-en">${q&&listenState.paused?q.en:''}</div>
+      <div class="listen-ipa ${q&&listenState.paused?'show':''}" id="listen-ipa">${q&&listenState.paused?(IPA_DATA[String(q.id)]||''):''}</div>
       <div class="listen-main-controls">
         <button class="listen-nav-btn" onclick="listenPrev()" title="前へ">◀</button>
         <button onclick="${isPlaying?'pauseListen()':'startListen()'}" style="width:56px;height:56px;border-radius:50%;border:none;background:var(--green);color:#fff;font-size:22px;cursor:pointer">
@@ -1332,9 +1332,26 @@ function renderListen(){
         <button class="listen-nav-btn" onclick="listenNext()" title="次へ">▶</button>
       </div>
     </div>
-    <div class="listen-status" id="listen-status">${isPaused?`${listenState.idx+1}/${listenState.queue.length} 一時停止中`:`日本語 → ${listenSettings.blank}秒 → 英語 の順で流れます`}</div>
+    <div class="listen-status" id="listen-status">${isPlaying?`再生中 ${listenState.idx+1}/${listenState.queue.length}`:isPaused?`一時停止中 ${listenState.idx+1}/${listenState.queue.length}`:`日本語 → ${listenSettings.blank}秒 → 英語 の順で流れます`}</div>
     <button class="listen-btn listen-stop" onclick="stopListen();renderListen()" style="margin-top:0">■ 停止してリセット</button>
   </div>`;
+}
+
+function changListenCat(cat){
+  listenSettings.cat=cat;
+  // 再生中なら停止して新カテゴリで最初から
+  stopListen();
+  listenState.queue=buildListenQueue();
+  listenState.idx=0;
+  renderListen();
+}
+
+function updateListenSettingsUI(){
+  // ブランク秒数変更はそのまま（再生は止めない）
+  const seg=document.querySelectorAll('.listen-wrap .seg .seg-btn');
+  seg.forEach(b=>{
+    b.classList.toggle('active', parseInt(b.textContent)===listenSettings.blank);
+  });
 }
 
 function buildListenQueue(){
@@ -1385,6 +1402,7 @@ function playNextListen(){
     setListenCard('✅ 全フレーズ完了！','','');
     setListenStatus('完了');
     listenState.playing=false;
+    stopWakeLock();
     renderListen();
     return;
   }
@@ -1392,26 +1410,32 @@ function playNextListen(){
   const pct=Math.round(listenState.idx/listenState.queue.length*100);
   const prog=document.getElementById('listen-prog');
   if(prog)prog.style.width=pct+'%';
-  setListenStatus(`${listenState.idx+1} / ${listenState.queue.length}`);
+  const noEl=document.getElementById('listen-no');
+  if(noEl)noEl.textContent=`${listenState.idx+1} / ${listenState.queue.length}`;
+  setListenStatus(`再生中 ${listenState.idx+1}/${listenState.queue.length}`);
 
-  // 日本語を表示して読み上げ
+  // Step1: 日本語表示＆読み上げ
   setListenCard(q.jp,'','');
   speakListen(q.jp,'ja-JP',1.0,()=>{
     if(!listenState.playing||listenState.paused)return;
+    // Step2: 日本語後のブランク
     listenState.timer=setTimeout(()=>{
       if(!listenState.playing||listenState.paused)return;
-      // 英語を表示して読み上げ（少し遅らせて文頭途切れを防ぐ）
+      // Step3: 英語表示
       setListenCard(q.jp, q.en, IPA_DATA[String(q.id)]||'');
-      setTimeout(()=>{
+      // Step4: 少し待ってから英語読み上げ（文頭途切れ防止）
+      listenState.timer=setTimeout(()=>{
         if(!listenState.playing||listenState.paused)return;
         speakListen(q.en,'en-US',0.88,()=>{
           if(!listenState.playing||listenState.paused)return;
+          // Step5: 英語後のブランク→次へ
           listenState.timer=setTimeout(()=>{
+            if(!listenState.playing||listenState.paused)return;
             listenState.idx++;
             playNextListen();
           }, listenSettings.blank*1000);
         });
-      }, 300);
+      }, 400);
     }, listenSettings.blank*1000);
   });
 }
@@ -1488,30 +1512,33 @@ function setListenStatus(txt){
 }
 
 function speakListen(txt, lang, rate, onEnd){
-  if(!window.speechSynthesis){onEnd&&onEnd();return;}
+  if(!window.speechSynthesis){if(onEnd)onEnd();return;}
+  // 前の発話が終わってから新しいものを開始
   speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(txt);
-  u.lang=lang;
-  u.rate=rate;
-
-  const voices=speechSynthesis.getVoices();
-  if(lang==='en-US'){
-    const preferred=['Microsoft Aria','Microsoft Jenny','Microsoft Zira','Google US English'];
-    const best=preferred.map(n=>voices.find(v=>v.name===n)).find(Boolean)
-      ||voices.find(v=>v.lang==='en-US'&&v.localService)
-      ||voices.find(v=>v.lang==='en-US');
-    if(best)u.voice=best;
-  } else if(lang==='ja-JP'){
-    // 日本語：Nanamiを優先（最も自然）
-    const preferred=['Microsoft Nanami','Microsoft Haruka','Google 日本語','Google Japanese'];
-    const best=preferred.map(n=>voices.find(v=>v.name===n)).find(Boolean)
-      ||voices.find(v=>v.lang==='ja-JP'&&v.localService)
-      ||voices.find(v=>v.lang==='ja-JP'||v.lang==='ja');
-    if(best)u.voice=best;
-  }
-  u.onend=()=>{onEnd&&onEnd();};
-  u.onerror=()=>{onEnd&&onEnd();};
-  speechSynthesis.speak(u);
+  // cancelの後に少し待ってから発話（即座に開始すると途切れることがある）
+  setTimeout(()=>{
+    if(!listenState.playing&&!listenState.paused){if(onEnd)onEnd();return;}
+    const u=new SpeechSynthesisUtterance(txt);
+    u.lang=lang;
+    u.rate=rate;
+    const voices=speechSynthesis.getVoices();
+    if(lang==='en-US'){
+      const preferred=['Microsoft Aria','Microsoft Jenny','Microsoft Zira','Google US English'];
+      const best=preferred.map(n=>voices.find(v=>v.name===n)).find(Boolean)
+        ||voices.find(v=>v.lang==='en-US'&&v.localService)
+        ||voices.find(v=>v.lang==='en-US');
+      if(best)u.voice=best;
+    } else if(lang==='ja-JP'){
+      const preferred=['Microsoft Nanami','Microsoft Haruka','Google 日本語','Google Japanese'];
+      const best=preferred.map(n=>voices.find(v=>v.name===n)).find(Boolean)
+        ||voices.find(v=>v.lang==='ja-JP'&&v.localService)
+        ||voices.find(v=>v.lang==='ja-JP'||v.lang==='ja');
+      if(best)u.voice=best;
+    }
+    u.onend=()=>{if(onEnd)onEnd();};
+    u.onerror=()=>{if(onEnd)onEnd();};
+    speechSynthesis.speak(u);
+  }, 50);
 }
 
 
