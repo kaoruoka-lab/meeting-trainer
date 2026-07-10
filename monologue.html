@@ -269,7 +269,6 @@ function showHistory(){
     <div class="history-card">
       <div class="history-card-header">
         <span class="history-date">${date}</span>
-        <span class="score-badge ${scoreClass}">${score}/5 ${scoreLabel}</span>
       </div>
       <div class="history-card-body">
         <div class="history-yours">
@@ -303,10 +302,16 @@ function showHistory(){
 }
 
 /* ===== RECORD ===== */
+let inputLang='en'; // 'en' or 'ja'
+
 function showRecord(){
   document.getElementById('main').innerHTML=`
   <div class="record-wrap">
-    <div class="rec-hint">英語または日本語で話してください<br>自動で判定してフィードバックします</div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button onclick="setLang('en')" id="btn-en" style="flex:1;padding:9px;border-radius:var(--radius-sm);border:2px solid ${inputLang==='en'?'var(--green)':'var(--border)'};background:${inputLang==='en'?'var(--green-bg)':'var(--bg2)'};color:${inputLang==='en'?'var(--green)':'var(--text2)'};font-size:13px;font-weight:600;cursor:pointer">🇺🇸 英語で話す</button>
+      <button onclick="setLang('ja')" id="btn-ja" style="flex:1;padding:9px;border-radius:var(--radius-sm);border:2px solid ${inputLang==='ja'?'var(--green)':'var(--border)'};background:${inputLang==='ja'?'var(--green-bg)':'var(--bg2)'};color:${inputLang==='ja'?'var(--green)':'var(--text2)'};font-size:13px;font-weight:600;cursor:pointer">🇯🇵 日本語で話す</button>
+    </div>
+    <div class="rec-hint">${inputLang==='en'?'英語で話すと文法チェック・より良い表現をフィードバック':'日本語で話すと自然な英語に変換します'}</div>
     <div class="mic-area">
       <div class="viz" id="viz">${Array.from({length:16},()=>'<div class="viz-bar"></div>').join('')}</div>
       <button class="mic-btn" id="mic-btn" onclick="toggleRecord()">🎤</button>
@@ -316,19 +321,18 @@ function showRecord(){
     ${history.length>0?`
     <div class="history-wrap">
       <div class="history-title">最近の練習 <span style="font-weight:400;color:var(--text2);cursor:pointer" onclick="swTab('history')">すべて見る →</span></div>
-      ${history.slice(0,3).map((h,i)=>{
-        const score=h.score||3;
-        const scoreClass=score>=5?'score-great':score>=4?'score-good':score>=3?'score-fair':'score-poor';
-        return `<div class="history-item" onclick="swTab('history')">
+      ${history.slice(0,3).map(h=>`
+        <div class="history-item" onclick="swTab('history')">
           <strong>${h.transcribed}</strong>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
-            <span>${h.japanese||''}</span>
-            <span class="score-badge ${scoreClass}" style="font-size:10px">${score}/5</span>
-          </div>
-        </div>`;
-      }).join('')}
+          <div style="color:var(--green);font-size:12px;margin-top:3px">${h.better||''}</div>
+        </div>`).join('')}
     </div>`:''}
   </div>`;
+}
+
+function setLang(lang){
+  inputLang=lang;
+  showRecord();
 }
 
 function showResult(idx){
@@ -363,8 +367,8 @@ async function startRecording(){
     isRecording=true;
     speechDetected=false;
 
-    // Web Speech API：まず日本語・英語両対応（ja-JPで起動すると両方認識できる場合がある）
-    startSTT('ja-JP');
+    // Web Speech API：選択言語で起動
+    startSTT(inputLang==='ja'?'ja-JP':'en-US');
 
     const btn=document.getElementById('mic-btn');
     if(btn){btn.classList.add('recording');btn.textContent='⏹';}
@@ -476,13 +480,8 @@ async function processAudio(){
     return;
   }
 
-  // 日本語かどうか判定（ひらがな・カタカナ・漢字が含まれるか）
-  const isJapanese=/[\u3040-\u30ff\u4e00-\u9fff]/.test(transcript);
-
-  // 英語で認識されたが日本語っぽい場合、日本語で再認識を試みる
-  if(!isJapanese && srLang==='en-US'){
-    // 英語として処理
-  }
+  // inputLangで判定（ボタンで選択した言語）
+  const isJapanese=inputLang==='ja';
 
   document.getElementById('main').innerHTML=`
   <div class="analyzing"><div class="spinner"></div>AIが分析中...</div>`;
@@ -588,7 +587,6 @@ function displayResult(result){
       <div class="card-header">
         <span class="card-icon">${isJaInput?'🇯🇵':'🎤'}</span>
         <span class="card-title">${isJaInput?'あなたの日本語':'あなたの英語'}</span>
-        <span class="score-badge ${scoreClass}" style="margin-left:auto">${score?score+'/5 ':' '}${scoreLabel}</span>
       </div>
       <div class="card-body">
         <div class="transcribed-text">${result.transcribed}</div>
@@ -623,7 +621,7 @@ function displayResult(result){
   </div>`;
 }
 
-/* ===== TTS/* ===== TTS ===== */
+/* ===== TTS ===== */
 function speakBetter(txt){
   if(!txt)return;
   if(!window.speechSynthesis)return;
