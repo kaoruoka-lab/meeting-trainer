@@ -345,23 +345,43 @@ async function toggleRecord(){
   }
 }
 
+let srInstance=null;
+let srTranscript='';
+
 async function startRecording(){
+  // 前回のリセット
+  if(srInstance){try{srInstance.stop();}catch(e){}srInstance=null;}
+  srTranscript='';
+
   try{
+    // ビジュアライザ用にマイクを取得
     micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
     audioContext=new(window.AudioContext||window.webkitAudioContext)();
     analyser=audioContext.createAnalyser();
     analyser.fftSize=256;
     const src=audioContext.createMediaStreamSource(micStream);
     src.connect(analyser);
-
-    audioChunks=[];
-    const mimeType=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
-    mediaRecorder=new MediaRecorder(micStream,{mimeType});
-    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
-    mediaRecorder.onstop=()=>processAudio();
-    mediaRecorder.start(100);
     isRecording=true;
     speechDetected=false;
+
+    // Web Speech APIを同時起動（リアルタイム認識）
+    if(window.SpeechRecognition||window.webkitSpeechRecognition){
+      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+      srInstance=new SR();
+      srInstance.lang='en-US';
+      srInstance.continuous=true;
+      srInstance.interimResults=false;
+      srInstance.onresult=e=>{
+        for(let i=e.resultIndex;i<e.results.length;i++){
+          if(e.results[i].isFinal){
+            srTranscript+=(srTranscript?' ':'')+e.results[i][0].transcript.trim();
+          }
+        }
+      };
+      srInstance.onerror=e=>{if(e.error!=='no-speech')console.error('STT error:',e.error);};
+      srInstance.onend=()=>{if(isRecording){try{srInstance.start();}catch(e){}}};
+      try{srInstance.start();}catch(e){}
+    }
 
     const btn=document.getElementById('mic-btn');
     if(btn){btn.classList.add('recording');btn.textContent='⏹';}
@@ -377,12 +397,19 @@ function stopRecording(){
   isRecording=false;
   cancelAnimationFrame(vizRaf);
   if(silenceTimer){clearTimeout(silenceTimer);silenceTimer=null;}
-  if(mediaRecorder&&mediaRecorder.state!=='inactive')mediaRecorder.stop();
+  // STT停止
+  if(srInstance){
+    srInstance.onend=()=>{};
+    try{srInstance.stop();}catch(e){}
+    srInstance=null;
+  }
   if(micStream)micStream.getTracks().forEach(t=>t.stop());
   if(audioContext&&audioContext.state!=='closed')audioContext.close();
   const btn=document.getElementById('mic-btn');
   if(btn){btn.classList.remove('recording');btn.textContent='🎤';}
   setStatus('分析中...','');
+  // 少し待ってから処理（最後の認識結果を確定させる）
+  setTimeout(processAudio, 500);
 }
 
 function setStatus(txt,cls){
@@ -418,7 +445,10 @@ function startViz(){
         const pct=Math.min(100,elapsed/SILENCE_MS*100);
         const sb=document.getElementById('silence-bar');
         if(sb)sb.style.width=pct+'%';
-        if(elapsed>=SILENCE_MS){stopRecording();return;}
+        if(elapsed>=SILENCE_MS){
+          stopRecording();
+          return;
+        }
       } else {
         silenceStart=null;
         const sb=document.getElementById('silence-bar');
@@ -432,14 +462,7 @@ function startViz(){
 
 /* ===== PROCESS ===== */
 async function processAudio(){
-  if(!speechDetected){showRecord();return;}
-
-  document.getElementById('main').innerHTML=`
-  <div class="analyzing"><div class="spinner"></div>音声を認識中...</div>`;
-
-  // Web Speech APIで文字起こし（無料）
-  const blob=new Blob(audioChunks,{type:'audio/webm'});
-  const transcript=await sttWebSpeech();
+  const transcript=srTranscript.trim();
 
   if(!transcript){
     document.getElementById('main').innerHTML=`
@@ -454,21 +477,6 @@ async function processAudio(){
   <div class="analyzing"><div class="spinner"></div>AIが分析中...</div>`;
 
   await analyzeText(transcript);
-}
-
-function sttWebSpeech(){
-  return new Promise(resolve=>{
-    if(!window.SpeechRecognition&&!window.webkitSpeechRecognition){resolve('');return;}
-    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    const sr=new SR();
-    sr.lang='en-US';sr.continuous=false;sr.interimResults=false;sr.maxAlternatives=1;
-    let done=false;
-    sr.onresult=e=>{if(!done){done=true;resolve(e.results[0][0].transcript.trim());}};
-    sr.onerror=()=>{if(!done){done=true;resolve('');}};
-    sr.onend=()=>{if(!done){done=true;resolve('');}};
-    setTimeout(()=>{if(!done){done=true;try{sr.stop();}catch(e){}resolve('');}},10000);
-    try{sr.start();}catch(e){resolve('');}
-  });
 }
 
 /* ===== ANALYZE ===== */
