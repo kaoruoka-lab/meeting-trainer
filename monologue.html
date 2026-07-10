@@ -592,7 +592,7 @@ function displayResult(result){
       </div>
     </div>`:''}
 
-    <button class="new-btn" onclick="showRecord();swTab('record')">🎤 もう一度話す</button>
+    <button class="new-btn" onclick="swTab('record');setTimeout(startRecording,100)">🎤 もう一度話す</button>
     <button class="new-btn" style="margin-top:8px;color:var(--green);border-color:var(--green)" onclick="swTab('history')">📋 履歴を見る</button>
   </div>`;
 }
