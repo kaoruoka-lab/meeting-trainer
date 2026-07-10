@@ -522,8 +522,8 @@ async function analyzeText(transcript, isJapanese=false){
   "errors": [
     {"original": "間違っている部分", "fix": "正しい表現", "reason": "理由（日本語で短く）"}
   ],
-  "better": "より自然でネイティブらしい英語表現（文全体）",
-  "better_reason": "なぜこの表現の方が良いか（日本語で1文）",
+  "better": "ネイティブスピーカーが実際に日常会話で使う最も自然な英語表現（文全体）。元の意図を保ちながら、より慣用的・流暢な表現に積極的に変える",
+  "better_reason": "なぜこの表現の方がネイティブらしいか（日本語で1文）",
   "tip": "発音・表現のワンポイント（日本語で1文・短く）"
 }
 
@@ -535,7 +535,7 @@ async function analyzeText(transcript, isJapanese=false){
 1=ほぼ通じない
 
 errorsは実際に問題がある場合のみ。問題なければ空配列[]。
-betterはユーザーの意図を活かしつつより自然な表現に。`;
+betterはネイティブスピーカーが実際に使う最も自然な表現を優先する。元の表現に近くする必要はない。慣用句・コロケーション・自然なリズムを重視すること。`;
 
   try{
     const res=await fetch('https://api.anthropic.com/v1/messages',{
@@ -626,21 +626,34 @@ function speakBetter(txt){
   if(!txt)return;
   if(!window.speechSynthesis)return;
   speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(txt);
-  u.lang='en-US';u.rate=0.88;
+
   const voices=speechSynthesis.getVoices();
   const preferred=['Microsoft Aria','Microsoft Jenny','Microsoft Zira','Google US English'];
   const best=preferred.map(n=>voices.find(v=>v.name===n)).find(Boolean)
     ||voices.find(v=>v.lang==='en-US'&&v.localService)
     ||voices.find(v=>v.lang==='en-US');
-  if(best)u.voice=best;
-  speechSynthesis.speak(u);
+
+  setTimeout(()=>{
+    const u=new SpeechSynthesisUtterance(txt);
+    u.lang='en-US';
+    u.rate=0.88;
+    if(best)u.voice=best;
+    speechSynthesis.speak(u);
+  },150);
 }
 
 /* ===== INIT ===== */
 loadData();
 updateDot();
 if(anthropicKey){showRecord();}else{showSetup();}
+
+// TTS事前ウォームアップ
+setTimeout(()=>{
+  if(!window.speechSynthesis)return;
+  const u=new SpeechSynthesisUtterance('\u00A0');
+  u.volume=0;u.lang='en-US';
+  speechSynthesis.speak(u);
+},1000);
 </script>
 </body>
 </html>
