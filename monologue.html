@@ -435,55 +435,38 @@ async function processAudio(){
   if(!speechDetected){showRecord();return;}
 
   document.getElementById('main').innerHTML=`
-  <div class="analyzing"><div class="spinner"></div>AIが分析中...</div>`;
+  <div class="analyzing"><div class="spinner"></div>音声を認識中...</div>`;
 
+  // Web Speech APIで文字起こし（無料）
   const blob=new Blob(audioChunks,{type:'audio/webm'});
-  let transcript='';
-
-  // STT
-  if(openaiKey){
-    try{
-      const fd=new FormData();
-      fd.append('file',blob,'audio.webm');
-      fd.append('model','whisper-1');
-      fd.append('language','en');
-      const r=await fetch('https://api.openai.com/v1/audio/transcriptions',{
-        method:'POST',
-        headers:{Authorization:`Bearer ${openaiKey}`},
-        body:fd
-      });
-      const d=await r.json();
-      transcript=(d.text||'').trim();
-    }catch(e){}
-  }
-
-  if(!transcript){
-    // Web Speech API fallback
-    transcript=await sttFallback(blob);
-  }
+  const transcript=await sttWebSpeech();
 
   if(!transcript){
     document.getElementById('main').innerHTML=`
     <div class="record-wrap">
-      <div class="mic-area" style="padding:20px;text-align:center;color:var(--text2)">音声を認識できませんでした</div>
+      <div class="mic-area" style="padding:20px;text-align:center;color:var(--text2)">音声を認識できませんでした<br><span style="font-size:12px">もう少しはっきり話してみてください</span></div>
       <button class="new-btn" onclick="showRecord()">もう一度</button>
     </div>`;
     return;
   }
 
+  document.getElementById('main').innerHTML=`
+  <div class="analyzing"><div class="spinner"></div>AIが分析中...</div>`;
+
   await analyzeText(transcript);
 }
 
-function sttFallback(blob){
+function sttWebSpeech(){
   return new Promise(resolve=>{
     if(!window.SpeechRecognition&&!window.webkitSpeechRecognition){resolve('');return;}
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     const sr=new SR();
-    sr.lang='en-US';sr.continuous=false;sr.interimResults=false;
-    sr.onresult=e=>resolve(e.results[0][0].transcript.trim());
-    sr.onerror=()=>resolve('');
-    sr.onend=()=>resolve('');
-    setTimeout(()=>resolve(''),8000);
+    sr.lang='en-US';sr.continuous=false;sr.interimResults=false;sr.maxAlternatives=1;
+    let done=false;
+    sr.onresult=e=>{if(!done){done=true;resolve(e.results[0][0].transcript.trim());}};
+    sr.onerror=()=>{if(!done){done=true;resolve('');}};
+    sr.onend=()=>{if(!done){done=true;resolve('');}};
+    setTimeout(()=>{if(!done){done=true;try{sr.stop();}catch(e){}resolve('');}},10000);
     try{sr.start();}catch(e){resolve('');}
   });
 }
@@ -526,7 +509,7 @@ betterはユーザーの意図を活かしつつより自然な表現に。大�
         'anthropic-version':'2023-06-01',
         'anthropic-dangerous-direct-browser-access':'true'
       },
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:prompt}]})
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:600,messages:[{role:'user',content:prompt}]})
     });
     const data=await res.json();
     const text=data.content.map(c=>c.text||'').join('').replace(/```json|```/g,'').trim();
@@ -615,33 +598,17 @@ function displayResult(result){
 }
 
 /* ===== TTS ===== */
-async function speakBetter(txt){
+function speakBetter(txt){
   if(!txt)return;
-
-  if(openaiKey){
-    // OpenAI TTS（自然な音声）
-    try{
-      const res=await fetch('https://api.openai.com/v1/audio/speech',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${openaiKey}`},
-        body:JSON.stringify({model:'tts-1',voice:'nova',input:txt,speed:0.9})
-      });
-      const blob=await res.blob();
-      const url=URL.createObjectURL(blob);
-      const audio=new Audio(url);
-      audio.play();
-      return;
-    }catch(e){}
-  }
-
-  // フォールバック：ブラウザTTS
   if(!window.speechSynthesis)return;
   speechSynthesis.cancel();
   const u=new SpeechSynthesisUtterance(txt);
   u.lang='en-US';u.rate=0.88;
   const voices=speechSynthesis.getVoices();
-  const preferred=['Microsoft Aria','Microsoft Jenny','Google US English'];
-  const best=preferred.map(n=>voices.find(v=>v.name===n)).find(Boolean)||voices.find(v=>v.lang==='en-US');
+  const preferred=['Microsoft Aria','Microsoft Jenny','Microsoft Zira','Google US English'];
+  const best=preferred.map(n=>voices.find(v=>v.name===n)).find(Boolean)
+    ||voices.find(v=>v.lang==='en-US'&&v.localService)
+    ||voices.find(v=>v.lang==='en-US');
   if(best)u.voice=best;
   speechSynthesis.speak(u);
 }
