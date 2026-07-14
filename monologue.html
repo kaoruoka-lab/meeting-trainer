@@ -366,6 +366,15 @@ async function startRecording(){
     src.connect(analyser);
     isRecording=true;
     speechDetected=false;
+    audioChunks=[];
+
+    // Whisperフォールバック用にMediaRecorderも起動
+    try{
+      const mimeType=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
+      mediaRecorder=new MediaRecorder(micStream,{mimeType});
+      mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
+      mediaRecorder.start(100);
+    }catch(e){}
 
     // Web Speech API：選択言語で起動
     startSTT(inputLang==='ja'?'ja-JP':'en-US');
@@ -380,23 +389,25 @@ async function startRecording(){
 }
 
 function startSTT(lang){
-  if(!window.SpeechRecognition&&!window.webkitSpeechRecognition)return;
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  srInstance=new SR();
+  // continuousモードはAndroidで不安定なため起動しない
+  // 録音停止後にone-shotで認識する
   srLang=lang;
-  srInstance.lang=lang;
-  srInstance.continuous=true;
-  srInstance.interimResults=false;
-  srInstance.onresult=e=>{
-    for(let i=e.resultIndex;i<e.results.length;i++){
-      if(e.results[i].isFinal){
-        srTranscript+=(srTranscript?' ':'')+e.results[i][0].transcript.trim();
-      }
-    }
-  };
-  srInstance.onerror=e=>{if(e.error!=='no-speech')console.error('STT:',e.error);};
-  srInstance.onend=()=>{if(isRecording){try{srInstance.start();}catch(e){}}};
-  try{srInstance.start();}catch(e){}
+}
+
+function runOneShotSTT(lang, callback){
+  if(!window.SpeechRecognition&&!window.webkitSpeechRecognition){callback('');return;}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const sr=new SR();
+  sr.lang=lang;
+  sr.continuous=false;
+  sr.interimResults=false;
+  sr.maxAlternatives=1;
+  let done=false;
+  sr.onresult=e=>{if(!done){done=true;callback(e.results[0][0].transcript.trim());}};
+  sr.onerror=()=>{if(!done){done=true;callback('');}};
+  sr.onend=()=>{if(!done){done=true;callback('');}};
+  setTimeout(()=>{if(!done){done=true;try{sr.stop();}catch(e){}callback('');}},8000);
+  try{sr.start();}catch(e){callback('');}
 }
 
 function stopRecording(){
@@ -404,19 +415,22 @@ function stopRecording(){
   isRecording=false;
   cancelAnimationFrame(vizRaf);
   if(silenceTimer){clearTimeout(silenceTimer);silenceTimer=null;}
-  // STT停止
-  if(srInstance){
-    srInstance.onend=()=>{};
-    try{srInstance.stop();}catch(e){}
-    srInstance=null;
+  // MediaRecorder停止
+  if(mediaRecorder&&mediaRecorder.state!=='inactive'){
+    try{mediaRecorder.stop();}catch(e){}
   }
   if(micStream)micStream.getTracks().forEach(t=>t.stop());
   if(audioContext&&audioContext.state!=='closed')audioContext.close();
   const btn=document.getElementById('mic-btn');
   if(btn){btn.classList.remove('recording');btn.textContent='🎤';}
-  setStatus('分析中...','');
-  // 少し待ってから処理（最後の認識結果を確定させる）
-  setTimeout(processAudio, 500);
+  setStatus('認識中...','');
+
+  // 録音停止後にone-shot STTで認識
+  const lang=inputLang==='ja'?'ja-JP':'en-US';
+  runOneShotSTT(lang,(transcript)=>{
+    srTranscript=transcript;
+    setTimeout(processAudio,200);
+  });
 }
 
 function setStatus(txt,cls){
@@ -469,7 +483,27 @@ function startViz(){
 
 /* ===== PROCESS ===== */
 async function processAudio(){
-  const transcript=srTranscript.trim();
+  let transcript=srTranscript.trim();
+
+  // Web Speech APIで取れなかった場合、Whisperにフォールバック
+  if(!transcript&&openaiKey&&audioChunks.length>0){
+    document.getElementById('main').innerHTML=`
+    <div class="analyzing"><div class="spinner"></div>音声を認識中（Whisper）...</div>`;
+    try{
+      const blob=new Blob(audioChunks,{type:'audio/webm'});
+      const fd=new FormData();
+      fd.append('file',blob,'audio.webm');
+      fd.append('model','whisper-1');
+      fd.append('language',inputLang==='ja'?'ja':'en');
+      const r=await fetch('https://api.openai.com/v1/audio/transcriptions',{
+        method:'POST',
+        headers:{Authorization:`Bearer ${openaiKey}`},
+        body:fd
+      });
+      const d=await r.json();
+      transcript=(d.text||'').trim();
+    }catch(e){console.error('Whisper error:',e);}
+  }
 
   if(!transcript){
     document.getElementById('main').innerHTML=`
@@ -480,13 +514,10 @@ async function processAudio(){
     return;
   }
 
-  // inputLangで判定（ボタンで選択した言語）
-  const isJapanese=inputLang==='ja';
-
   document.getElementById('main').innerHTML=`
   <div class="analyzing"><div class="spinner"></div>AIが分析中...</div>`;
 
-  await analyzeText(transcript, isJapanese);
+  await analyzeText(transcript, inputLang==='ja');
 }
 
 /* ===== ANALYZE ===== */
