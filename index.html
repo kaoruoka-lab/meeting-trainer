@@ -1364,6 +1364,7 @@ function startListen(){
   if(listenState.paused){
     listenState.paused=false;
     listenState.playing=true;
+    listenSessionId++; // 新セッション開始
     renderListen();
     playNextListen();
     return;
@@ -1373,6 +1374,7 @@ function startListen(){
   listenState.idx=0;
   listenState.playing=true;
   listenState.paused=false;
+  listenSessionId++; // 新セッション開始
   startWakeLock();
   renderListen();
   playNextListen();
@@ -1380,6 +1382,7 @@ function startListen(){
 
 function pauseListen(){
   if(!listenState.playing)return;
+  listenSessionId++; // 古いコールバックを無効化
   listenState.paused=true;
   listenState.playing=false;
   if(listenState.timer){clearTimeout(listenState.timer);listenState.timer=null;}
@@ -1388,12 +1391,15 @@ function pauseListen(){
 }
 
 function stopListen(){
+  listenSessionId++; // 古いコールバックを無効化
   listenState.playing=false;
   listenState.paused=false;
   if(listenState.timer){clearTimeout(listenState.timer);listenState.timer=null;}
   if(window.speechSynthesis)speechSynthesis.cancel();
   stopWakeLock();
 }
+
+let listenSessionId=0; // セッションIDで古いコールバックを無効化
 
 function playNextListen(){
   if(!listenState.playing||listenState.paused)return;
@@ -1414,23 +1420,28 @@ function playNextListen(){
   if(noEl)noEl.textContent=`${listenState.idx+1} / ${listenState.queue.length}`;
   setListenStatus(`再生中 ${listenState.idx+1}/${listenState.queue.length}`);
 
+  // 現在のセッションIDをキャプチャ
+  const sid=listenSessionId;
+
+  const isValid=()=>listenSessionId===sid&&listenState.playing&&!listenState.paused;
+
   // Step1: 日本語表示＆読み上げ
   setListenCard(q.jp,'','');
   speakListen(q.jp,'ja-JP',1.0,()=>{
-    if(!listenState.playing||listenState.paused)return;
+    if(!isValid())return;
     // Step2: 日本語後のブランク
     listenState.timer=setTimeout(()=>{
-      if(!listenState.playing||listenState.paused)return;
+      if(!isValid())return;
       // Step3: 英語表示
       setListenCard(q.jp, q.en, IPA_DATA[String(q.id)]||'');
-      // Step4: 少し待ってから英語読み上げ（文頭途切れ防止）
+      // Step4: 少し待ってから英語読み上げ
       listenState.timer=setTimeout(()=>{
-        if(!listenState.playing||listenState.paused)return;
+        if(!isValid())return;
         speakListen(q.en,'en-US',0.88,()=>{
-          if(!listenState.playing||listenState.paused)return;
+          if(!isValid())return;
           // Step5: 英語後のブランク→次へ
           listenState.timer=setTimeout(()=>{
-            if(!listenState.playing||listenState.paused)return;
+            if(!isValid())return;
             listenState.idx++;
             playNextListen();
           }, listenSettings.blank*1000);
@@ -1442,23 +1453,29 @@ function playNextListen(){
 
 function listenPrev(){
   if(listenState.idx>0){
-    pauseListen();
+    listenSessionId++;
+    if(window.speechSynthesis)speechSynthesis.cancel();
+    if(listenState.timer){clearTimeout(listenState.timer);listenState.timer=null;}
     listenState.idx--;
-    listenState.paused=true;
-    listenState.playing=false;
+    listenState.paused=false;
+    listenState.playing=true;
+    listenSessionId++;
     renderListen();
-    startListen();
+    playNextListen();
   }
 }
 
 function listenNext(){
   if(listenState.idx<listenState.queue.length-1){
-    pauseListen();
+    listenSessionId++;
+    if(window.speechSynthesis)speechSynthesis.cancel();
+    if(listenState.timer){clearTimeout(listenState.timer);listenState.timer=null;}
     listenState.idx++;
     listenState.paused=false;
     listenState.playing=true;
+    listenSessionId++;
+    renderListen();
     playNextListen();
-    updateListenCard();
   }
 }
 
